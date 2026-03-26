@@ -27,15 +27,15 @@ const transporter = nodemailer.createTransport({
     port: 465,
     secure: true,
     auth: {
-        user: "sitsolutions2017@gmail.com",
-        pass: "trkyyvhbjsfysjbq", // NO spaces
+        user: process.env.EMAIL,
+        pass: process.env.EMAIL_PASSWORD
     },
 });
 
 exports.sendEmail = async (to, subject, text, html) => {
     try {
         const info = await transporter.sendMail({
-            from: `"App" <sitsolutions2017@gmail.com>`,
+            from: `"App" <${process.env.EMAIL}>`,
             to,
             subject,
             text,
