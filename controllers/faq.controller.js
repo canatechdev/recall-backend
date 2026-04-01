@@ -6,7 +6,7 @@ exports.createFaq = async (req, res) => {
     const { question, answer, status } = req.body;
 
     const result = await pool.query(
-      `INSERT INTO faqs (question, answer, status)
+      `INSERT INTO faqs (question, answer, is_active)
        VALUES ($1, $2, $3)
        RETURNING *`,
       [question, answer, status],
@@ -25,7 +25,11 @@ exports.createFaq = async (req, res) => {
 // GET ALL FAQS
 exports.getAllFaqs = async (req, res) => {
   try {
-    const result = await pool.query(`SELECT * FROM faqs ORDER BY id DESC`);
+    const result = await pool.query(`
+      SELECT id, question, answer, is_active as status, created_at, updated_at
+      FROM faqs
+      ORDER BY id DESC
+    `);
 
     res.json(result.rows);
   } catch (error) {
@@ -39,11 +43,11 @@ exports.getActiveFaqs = async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT * FROM faqs
-       WHERE status = true
+       WHERE is_active = true
        ORDER BY id DESC`,
     );
 
-    res.json(result.rows);
+    res.json(result.rows.map((r) => ({ ...r, status: r.is_active })));
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });
@@ -55,7 +59,12 @@ exports.getFaqById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const result = await pool.query(`SELECT * FROM faqs WHERE id = $1`, [id]);
+    const result = await pool.query(
+      `SELECT id, question, answer, is_active as status, created_at, updated_at
+       FROM faqs
+       WHERE id = $1`,
+      [id],
+    );
 
     res.json(result.rows[0]);
   } catch (error) {
@@ -72,7 +81,7 @@ exports.updateFaq = async (req, res) => {
 
     const result = await pool.query(
       `UPDATE faqs
-       SET question=$1, answer=$2, status=$3, updated_at=CURRENT_TIMESTAMP
+       SET question=$1, answer=$2, is_active=$3, updated_at=CURRENT_TIMESTAMP
        WHERE id=$4
        RETURNING *`,
       [question, answer, status, id],
@@ -115,7 +124,7 @@ exports.updateFaqStatus = async (req, res) => {
 
     const result = await pool.query(
       `UPDATE faqs
-       SET status = $1, updated_at = CURRENT_TIMESTAMP
+       SET is_active = $1, updated_at = CURRENT_TIMESTAMP
        WHERE id = $2
        RETURNING *`,
       [status, id],
@@ -123,7 +132,7 @@ exports.updateFaqStatus = async (req, res) => {
 
     res.json({
       message: "FAQ status updated",
-      data: result.rows[0],
+      data: { ...result.rows[0], status: result.rows[0]?.is_active },
     });
   } catch (error) {
     console.error(error);

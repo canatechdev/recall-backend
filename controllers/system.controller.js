@@ -1,7 +1,7 @@
 const systemService = require("../services/system.service")
 
 exports.getServices = async (req, res) => {
-    const data = await systemService.getServices();
+    const data = await systemService.getServices(req.query);
     res.status(200).json(data);
 }
 exports.createService = async (req, res) => {
@@ -13,6 +13,14 @@ exports.deleteService = async (req, res) => {
     const { id } = req.params;
     if (!id) throw { status: 400, message: "ID is required" }
     const data = await systemService.deleteService(id);
+    res.status(200).json(data);
+}
+
+exports.toggleService = async (req, res) => {
+    const { id } = req.params;
+    if (!id) throw { status: 400, message: "ID is required" }
+    const { status } = req.body;
+    const data = await systemService.toggleService(id, status);
     res.status(200).json(data);
 }
 exports.getCategories = async (req, res) => {
@@ -37,15 +45,16 @@ exports.updateCategory = async (req, res) => {
     res.status(200).json(data);
 }
 
-exports.deleteCategory = async (req, res) => {
+exports.toggleCategory = async (req, res) => {
     const { id } = req.params;
     if (!id) throw { status: 400, message: "ID is required" }
-    const data = await systemService.deleteCategory(id);
+    const { status } = req.body;
+    const data = await systemService.toggleCategory(id, status);
     res.status(200).json(data);
 }
 
 exports.getBrands = async (req, res) => {
-    const data = await systemService.getBrands(req.params);
+    const data = await systemService.getBrands({ ...req.params, ...req.query });
     res.status(200).json(data);
 }
 // exports.getCategoryBrands = async (req, res) => {
@@ -72,6 +81,14 @@ exports.deleteBrand = async (req, res) => {
     const { id } = req.params;
     if (!id) throw { status: 400, message: "ID is required" }
     const data = await systemService.deleteBrand(id);
+    res.status(200).json(data);
+}
+
+exports.toggleBrand = async (req, res) => {
+    const { id } = req.params;
+    if (!id) throw { status: 400, message: "ID is required" }
+    const { status } = req.body;
+    const data = await systemService.toggleBrand(id, status);
     res.status(200).json(data);
 }
 

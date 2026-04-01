@@ -1,386 +1,340 @@
-import React from 'react'
-import classNames from 'classnames'
+import React, { useMemo, useState } from 'react'
 
-import {
-  CAvatar,
-  CButton,
-  CButtonGroup,
-  CCard,
-  CCardBody,
-  CCardFooter,
-  CCardHeader,
-  CCol,
-  CProgress,
-  CRow,
-  CTable,
-  CTableBody,
-  CTableDataCell,
-  CTableHead,
-  CTableHeaderCell,
-  CTableRow,
-} from '@coreui/react'
+import { CAvatar, CBadge, CButton, CButtonGroup, CCard, CCardBody, CCol, CProgress, CRow } from '@coreui/react'
 import CIcon from '@coreui/icons-react'
-import {
-  cibCcAmex,
-  cibCcApplePay,
-  cibCcMastercard,
-  cibCcPaypal,
-  cibCcStripe,
-  cibCcVisa,
-  cibGoogle,
-  cibFacebook,
-  cibLinkedin,
-  cifBr,
-  cifEs,
-  cifFr,
-  cifIn,
-  cifPl,
-  cifUs,
-  cibTwitter,
-  cilCloudDownload,
-  cilPeople,
-  cilUser,
-  cilUserFemale,
-} from '@coreui/icons'
+import { cilCloudDownload, cilGlobeAlt, cilPeople, cilPlus, cilStorage, cilSwapHorizontal, cilWallet } from '@coreui/icons'
 
 import avatar1 from 'src/assets/images/avatars/1.jpg'
 import avatar2 from 'src/assets/images/avatars/2.jpg'
 import avatar3 from 'src/assets/images/avatars/3.jpg'
-import avatar4 from 'src/assets/images/avatars/4.jpg'
-import avatar5 from 'src/assets/images/avatars/5.jpg'
-import avatar6 from 'src/assets/images/avatars/6.jpg'
-
-import WidgetsBrand from '../widgets/WidgetsBrand'
-import WidgetsDropdown from '../widgets/WidgetsDropdown'
-import MainChart from './MainChart'
 
 const Dashboard = () => {
-  const progressExample = [
-    { title: 'Visits', value: '29.703 Users', percent: 40, color: 'success' },
-    { title: 'Unique', value: '24.093 Users', percent: 20, color: 'info' },
-    { title: 'Pageviews', value: '78.706 Views', percent: 60, color: 'warning' },
-    { title: 'New Users', value: '22.123 Users', percent: 80, color: 'danger' },
-    { title: 'Bounce Rate', value: 'Average Rate', percent: 40.15, color: 'primary' },
-  ]
+  const [trafficRange, setTrafficRange] = useState('Month')
 
-  const progressGroupExample1 = [
-    { title: 'Monday', value1: 34, value2: 78 },
-    { title: 'Tuesday', value1: 56, value2: 94 },
-    { title: 'Wednesday', value1: 12, value2: 67 },
-    { title: 'Thursday', value1: 43, value2: 91 },
-    { title: 'Friday', value1: 22, value2: 73 },
-    { title: 'Saturday', value1: 53, value2: 82 },
-    { title: 'Sunday', value1: 9, value2: 69 },
-  ]
-
-  const progressGroupExample2 = [
-    { title: 'Male', icon: cilUser, value: 53 },
-    { title: 'Female', icon: cilUserFemale, value: 43 },
-  ]
-
-  const progressGroupExample3 = [
-    { title: 'Organic Search', icon: cibGoogle, percent: 56, value: '191,235' },
-    { title: 'Facebook', icon: cibFacebook, percent: 15, value: '51,223' },
-    { title: 'Twitter', icon: cibTwitter, percent: 11, value: '37,564' },
-    { title: 'LinkedIn', icon: cibLinkedin, percent: 8, value: '27,319' },
-  ]
-
-  const tableExample = [
-    {
-      avatar: { src: avatar1, status: 'success' },
-      user: {
-        name: 'Yiorgos Avraamu',
-        new: true,
-        registered: 'Jan 1, 2023',
-      },
-      country: { name: 'USA', flag: cifUs },
-      usage: {
-        value: 50,
-        period: 'Jun 11, 2023 - Jul 10, 2023',
+  const stats = useMemo(
+    () => [
+      {
+        label: 'TOTAL USERS',
+        value: '26,482',
+        delta: '+ 12.5%',
         color: 'success',
+        icon: cilPeople,
+        spark: 'M2,26 C10,26 12,14 20,14 C28,14 28,24 36,24 C44,24 46,10 54,10 C62,10 64,24 72,24 C80,24 86,18 94,18',
       },
-      payment: { name: 'Mastercard', icon: cibCcMastercard },
-      activity: '10 sec ago',
-    },
-    {
-      avatar: { src: avatar2, status: 'danger' },
-      user: {
-        name: 'Avram Tarasios',
-        new: false,
-        registered: 'Jan 1, 2023',
+      {
+        label: 'MONTHLY INCOME',
+        value: '$6,200',
+        delta: '+ 8.2%',
+        color: 'success',
+        icon: cilWallet,
+        spark: 'M2,22 C12,22 14,12 24,12 C34,12 34,20 44,20 C54,20 56,10 66,10 C76,10 80,18 94,18',
       },
-      country: { name: 'Brazil', flag: cifBr },
-      usage: {
-        value: 22,
-        period: 'Jun 11, 2023 - Jul 10, 2023',
-        color: 'info',
-      },
-      payment: { name: 'Visa', icon: cibCcVisa },
-      activity: '5 minutes ago',
-    },
-    {
-      avatar: { src: avatar3, status: 'warning' },
-      user: { name: 'Quintin Ed', new: true, registered: 'Jan 1, 2023' },
-      country: { name: 'India', flag: cifIn },
-      usage: {
-        value: 74,
-        period: 'Jun 11, 2023 - Jul 10, 2023',
-        color: 'warning',
-      },
-      payment: { name: 'Stripe', icon: cibCcStripe },
-      activity: '1 hour ago',
-    },
-    {
-      avatar: { src: avatar4, status: 'secondary' },
-      user: { name: 'Enéas Kwadwo', new: true, registered: 'Jan 1, 2023' },
-      country: { name: 'France', flag: cifFr },
-      usage: {
-        value: 98,
-        period: 'Jun 11, 2023 - Jul 10, 2023',
+      {
+        label: 'CONVERSION RATE',
+        value: '2.49%',
+        delta: '- 0.4%',
         color: 'danger',
+        icon: cilSwapHorizontal,
+        spark: 'M2,12 C14,12 16,18 26,18 C36,18 38,10 48,10 C58,10 60,22 70,22 C80,22 84,26 94,26',
       },
-      payment: { name: 'PayPal', icon: cibCcPaypal },
-      activity: 'Last month',
-    },
-    {
-      avatar: { src: avatar5, status: 'success' },
-      user: {
-        name: 'Agapetus Tadeáš',
-        new: true,
-        registered: 'Jan 1, 2023',
-      },
-      country: { name: 'Spain', flag: cifEs },
-      usage: {
-        value: 22,
-        period: 'Jun 11, 2023 - Jul 10, 2023',
-        color: 'primary',
-      },
-      payment: { name: 'Google Wallet', icon: cibCcApplePay },
-      activity: 'Last week',
-    },
-    {
-      avatar: { src: avatar6, status: 'danger' },
-      user: {
-        name: 'Friderik Dávid',
-        new: true,
-        registered: 'Jan 1, 2023',
-      },
-      country: { name: 'Poland', flag: cifPl },
-      usage: {
-        value: 43,
-        period: 'Jun 11, 2023 - Jul 10, 2023',
+      {
+        label: 'ACTIVE SESSIONS',
+        value: '44.1K',
+        delta: 'Live Now',
         color: 'success',
+        icon: cilGlobeAlt,
+        spark: 'M2,20 C10,20 12,10 22,10 C32,10 34,24 44,24 C54,24 56,14 66,14 C76,14 78,22 88,22 C92,22 94,20 94,20',
       },
-      payment: { name: 'Amex', icon: cibCcAmex },
-      activity: 'Last week',
-    },
-  ]
+    ],
+    [],
+  )
+
+  const nodes = useMemo(
+    () => [
+      {
+        icon: cilStorage,
+        name: 'Core SQL Master',
+        region: 'US-EAST-1 (Virginia)',
+        load: 24,
+        health: '99.98%',
+        status: 'OPTIMAL',
+      },
+      {
+        icon: cilCloudDownload,
+        name: 'CDN Edge Node',
+        region: 'EU-WEST-2 (London)',
+        load: 82,
+        health: '99.91%',
+        status: 'OPTIMAL',
+      },
+      {
+        icon: cilSwapHorizontal,
+        name: 'API Gateway V2',
+        region: 'AP-SOUTH-1 (Mumbai)',
+        load: 50,
+        health: '99.95%',
+        status: 'OPTIMAL',
+      },
+    ],
+    [],
+  )
+
+  const team = useMemo(
+    () => [
+      {
+        avatar: avatar1,
+        name: 'Sarah Chen',
+        action: 'invited 3 new leads to the funnel',
+        time: '2 mins ago',
+      },
+      {
+        avatar: avatar2,
+        name: 'Marcus Wright',
+        action: 'updated “Premium Tier” product pricing',
+        time: '14 mins ago',
+      },
+      {
+        avatar: avatar3,
+        name: 'Elena Sofia',
+        action: 'archived 12 rejected leads from June',
+        time: '1 hour ago',
+      },
+    ],
+    [],
+  )
+
+  const Sparkline = ({ d, color }) => (
+    <svg width="110" height="34" viewBox="0 0 96 32" aria-hidden="true">
+      <path d={d} fill="none" stroke="currentColor" strokeWidth="2" className={`text-${color}`} />
+    </svg>
+  )
+
+  const StatCard = ({ label, value, delta, color, icon, spark }) => (
+    <CCard className="border-0 shadow-sm rounded-4 h-100">
+      <CCardBody className="p-3">
+        <div className="d-flex align-items-start justify-content-between">
+          <div>
+            <div className="text-body-secondary small fw-semibold" style={{ letterSpacing: 0.6 }}>
+              {label}
+            </div>
+            <div className="fs-3 fw-bold mt-2">{value}</div>
+            <div className={`small mt-1 text-${color}`}>↗ {delta}</div>
+          </div>
+          <div className="rounded-circle bg-body-tertiary d-flex align-items-center justify-content-center" style={{ width: 36, height: 36 }}>
+            <CIcon icon={icon} className={`text-${color}`} />
+          </div>
+        </div>
+        <div className="d-flex justify-content-end mt-2">
+          <Sparkline d={spark} color={color} />
+        </div>
+      </CCardBody>
+    </CCard>
+  )
+
+  const TrafficChart = () => (
+    <svg width="100%" height="260" viewBox="0 0 720 260" aria-hidden="true">
+      <defs>
+        <linearGradient id="trafficFill" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor="currentColor" stopOpacity="0.18" />
+          <stop offset="100%" stopColor="currentColor" stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
+
+      <path
+        d="M30 200 C 90 180, 120 110, 180 110 C 250 110, 280 190, 340 190 C 410 190, 430 70, 500 70 C 560 70, 600 150, 690 150"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="3"
+        className="text-success"
+      />
+      <path
+        d="M30 200 C 90 180, 120 110, 180 110 C 250 110, 280 190, 340 190 C 410 190, 430 70, 500 70 C 560 70, 600 150, 690 150 L 690 230 L 30 230 Z"
+        fill="url(#trafficFill)"
+        className="text-success"
+      />
+
+      <path
+        d="M30 210 C 130 205, 220 200, 340 198 C 460 196, 560 194, 690 192"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeDasharray="6 6"
+        className="text-body-secondary"
+        opacity="0.6"
+      />
+
+      <circle cx="500" cy="70" r="5" className="text-success" fill="currentColor" />
+      <circle cx="500" cy="70" r="11" className="text-success" fill="currentColor" opacity="0.18" />
+
+      {[
+        { x: 40, t: 'JAN' },
+        { x: 130, t: 'FEB' },
+        { x: 220, t: 'MAR' },
+        { x: 310, t: 'APR' },
+        { x: 400, t: 'MAY' },
+        { x: 490, t: 'JUN' },
+        { x: 580, t: 'JUL' },
+        { x: 670, t: 'AUG' },
+      ].map((m) => (
+        <text key={m.t} x={m.x} y={252} className="text-body-secondary" fontSize="11">
+          {m.t}
+        </text>
+      ))}
+    </svg>
+  )
 
   return (
-    <>
-      <WidgetsDropdown className="mb-4" />
-      <CCard className="mb-4">
-        <CCardBody>
-          <CRow>
-            <CCol sm={5}>
-              <h4 id="traffic" className="card-title mb-0">
-                Traffic
-              </h4>
-              <div className="small text-body-secondary">January - July 2023</div>
+    <div className="bg-body-tertiary min-vh-100 py-4">
+      <div className="container-fluid px-4">
+        <div className="d-flex align-items-start justify-content-between flex-wrap gap-3">
+          <div>
+            <div className="h3 fw-bold mb-1">Performance Overview</div>
+            <div className="text-body-secondary">Real-time insight into your platform ecosystem.</div>
+          </div>
+          <CButton color="success" className="rounded-pill px-4">
+            <CIcon icon={cilCloudDownload} className="me-2" />
+            Export Data
+          </CButton>
+        </div>
+
+        <CRow className="g-3 mt-2">
+          {stats.map((s) => (
+            <CCol key={s.label} xs={12} sm={6} lg={3}>
+              <StatCard {...s} />
             </CCol>
-            <CCol sm={7} className="d-none d-md-block">
-              <CButton color="primary" className="float-end">
-                <CIcon icon={cilCloudDownload} />
-              </CButton>
-              <CButtonGroup className="float-end me-3">
-                {['Day', 'Month', 'Year'].map((value) => (
-                  <CButton
-                    color="outline-secondary"
-                    key={value}
-                    className="mx-0"
-                    active={value === 'Month'}
-                  >
-                    {value}
-                  </CButton>
-                ))}
-              </CButtonGroup>
-            </CCol>
-          </CRow>
-          <MainChart />
-        </CCardBody>
-        <CCardFooter>
-          <CRow
-            xs={{ cols: 1, gutter: 4 }}
-            sm={{ cols: 2 }}
-            lg={{ cols: 4 }}
-            xl={{ cols: 5 }}
-            className="mb-2 text-center"
-          >
-            {progressExample.map((item, index, items) => (
-              <CCol
-                className={classNames({
-                  'd-none d-xl-block': index + 1 === items.length,
-                })}
-                key={index}
-              >
-                <div className="text-body-secondary">{item.title}</div>
-                <div className="fw-semibold text-truncate">
-                  {item.value} ({item.percent}%)
+          ))}
+        </CRow>
+
+        <CRow className="g-3 mt-3">
+          <CCol xs={12} lg={8}>
+            <CCard className="border-0 shadow-sm rounded-4 h-100">
+              <CCardBody className="p-3 p-md-4">
+                <div className="d-flex align-items-start justify-content-between flex-wrap gap-3">
+                  <div>
+                    <div className="fw-bold">Traffic Overview</div>
+                    <div className="text-body-secondary small">Daily user engagement and acquisition metrics</div>
+                  </div>
+                  <CButtonGroup className="bg-body-tertiary rounded-pill p-1">
+                    {['Day', 'Month', 'Year'].map((v) => (
+                      <CButton
+                        key={v}
+                        color={trafficRange === v ? 'success' : 'light'}
+                        className="rounded-pill px-3"
+                        size="sm"
+                        onClick={() => setTrafficRange(v)}
+                      >
+                        {v}
+                      </CButton>
+                    ))}
+                  </CButtonGroup>
                 </div>
-                <CProgress thin className="mt-2" color={item.color} value={item.percent} />
-              </CCol>
-            ))}
-          </CRow>
-        </CCardFooter>
-      </CCard>
-      <WidgetsBrand className="mb-4" withCharts />
-      <CRow>
-        <CCol xs>
-          <CCard className="mb-4">
-            <CCardHeader>Traffic {' & '} Sales</CCardHeader>
-            <CCardBody>
-              <CRow>
-                <CCol xs={12} md={6} xl={6}>
-                  <CRow>
-                    <CCol xs={6}>
-                      <div className="border-start border-start-4 border-start-info py-1 px-3">
-                        <div className="text-body-secondary text-truncate small">New Clients</div>
-                        <div className="fs-5 fw-semibold">9,123</div>
-                      </div>
-                    </CCol>
-                    <CCol xs={6}>
-                      <div className="border-start border-start-4 border-start-danger py-1 px-3 mb-3">
-                        <div className="text-body-secondary text-truncate small">
-                          Recurring Clients
-                        </div>
-                        <div className="fs-5 fw-semibold">22,643</div>
-                      </div>
-                    </CCol>
-                  </CRow>
-                  <hr className="mt-0" />
-                  {progressGroupExample1.map((item, index) => (
-                    <div className="progress-group mb-4" key={index}>
-                      <div className="progress-group-prepend">
-                        <span className="text-body-secondary small">{item.title}</span>
-                      </div>
-                      <div className="progress-group-bars">
-                        <CProgress thin color="info" value={item.value1} />
-                        <CProgress thin color="danger" value={item.value2} />
-                      </div>
-                    </div>
-                  ))}
-                </CCol>
-                <CCol xs={12} md={6} xl={6}>
-                  <CRow>
-                    <CCol xs={6}>
-                      <div className="border-start border-start-4 border-start-warning py-1 px-3 mb-3">
-                        <div className="text-body-secondary text-truncate small">Pageviews</div>
-                        <div className="fs-5 fw-semibold">78,623</div>
-                      </div>
-                    </CCol>
-                    <CCol xs={6}>
-                      <div className="border-start border-start-4 border-start-success py-1 px-3 mb-3">
-                        <div className="text-body-secondary text-truncate small">Organic</div>
-                        <div className="fs-5 fw-semibold">49,123</div>
-                      </div>
-                    </CCol>
-                  </CRow>
 
-                  <hr className="mt-0" />
+                <div className="mt-3">
+                  <TrafficChart />
+                </div>
+              </CCardBody>
+            </CCard>
+          </CCol>
 
-                  {progressGroupExample2.map((item, index) => (
-                    <div className="progress-group mb-4" key={index}>
-                      <div className="progress-group-header">
-                        <CIcon className="me-2" icon={item.icon} size="lg" />
-                        <span>{item.title}</span>
-                        <span className="ms-auto fw-semibold">{item.value}%</span>
-                      </div>
-                      <div className="progress-group-bars">
-                        <CProgress thin color="warning" value={item.value} />
+          <CCol xs={12} lg={4}>
+            <CCard className="border-0 shadow-sm rounded-4 h-100">
+              <CCardBody className="p-3 p-md-4">
+                <div className="d-flex align-items-center justify-content-between">
+                  <div className="fw-bold">Team Live</div>
+                  <CBadge color="success" className="rounded-pill">
+                    LIVE UPDATES
+                  </CBadge>
+                </div>
+
+                <div className="mt-3 d-grid gap-3">
+                  {team.map((t) => (
+                    <div key={t.name} className="d-flex gap-3">
+                      <CAvatar src={t.avatar} size="md" />
+                      <div className="flex-grow-1">
+                        <div className="fw-semibold">{t.name}</div>
+                        <div className="text-body-secondary small">{t.action}</div>
+                        <div className="text-body-secondary small mt-1">{t.time}</div>
                       </div>
                     </div>
                   ))}
 
-                  <div className="mb-5"></div>
+                  <div className="bg-body-tertiary rounded-4 p-3 mt-2">
+                    <div className="fw-semibold">Project Status</div>
+                    <div className="text-body-secondary small">Enterprise rollout phase 2</div>
+                    <div className="d-flex align-items-center justify-content-between mt-3">
+                      <div className="small fw-semibold text-success">72% Complete</div>
+                    </div>
+                    <CProgress value={72} color="success" className="mt-2" style={{ height: 8 }} />
+                  </div>
+                </div>
+              </CCardBody>
+            </CCard>
+          </CCol>
+        </CRow>
 
-                  {progressGroupExample3.map((item, index) => (
-                    <div className="progress-group" key={index}>
-                      <div className="progress-group-header">
-                        <CIcon className="me-2" icon={item.icon} size="lg" />
-                        <span>{item.title}</span>
-                        <span className="ms-auto fw-semibold">
-                          {item.value}{' '}
-                          <span className="text-body-secondary small">({item.percent}%)</span>
-                        </span>
+        <div className="mt-3">
+          <CCard className="border-0 shadow-sm rounded-4">
+            <CCardBody className="p-3 p-md-4">
+              <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div className="fw-bold">System High-Traffic Nodes</div>
+                <div className="d-flex align-items-center gap-3">
+                  <div className="small text-body-secondary">
+                    <span className="text-success">•</span> 3 Nodes Active
+                  </div>
+                  <a href="#" className="small text-success text-decoration-none fw-semibold">
+                    View All Cluster Data
+                  </a>
+                </div>
+              </div>
+
+              <div className="mt-3 d-grid gap-3">
+                {nodes.map((n) => (
+                  <div
+                    key={n.name}
+                    className="d-flex align-items-center justify-content-between gap-3 flex-wrap"
+                  >
+                    <div className="d-flex align-items-center gap-3" style={{ minWidth: 260 }}>
+                      <div
+                        className="rounded-3 bg-body-tertiary d-flex align-items-center justify-content-center"
+                        style={{ width: 42, height: 42 }}
+                      >
+                        <CIcon icon={n.icon} className="text-success" />
                       </div>
-                      <div className="progress-group-bars">
-                        <CProgress thin color="success" value={item.percent} />
+                      <div>
+                        <div className="fw-semibold">{n.name}</div>
+                        <div className="text-body-secondary small">{n.region}</div>
                       </div>
                     </div>
-                  ))}
-                </CCol>
-              </CRow>
 
-              <br />
+                    <div className="d-flex align-items-center gap-3 flex-grow-1" style={{ minWidth: 240 }}>
+                      <div className="flex-grow-1">
+                        <CProgress value={n.load} color="success" style={{ height: 6 }} />
+                      </div>
+                      <div className="small text-body-secondary" style={{ width: 70 }}>
+                        {n.load}% Load
+                      </div>
+                    </div>
 
-              <CTable align="middle" className="mb-0 border" hover responsive>
-                <CTableHead className="text-nowrap">
-                  <CTableRow>
-                    <CTableHeaderCell className="bg-body-tertiary text-center">
-                      <CIcon icon={cilPeople} />
-                    </CTableHeaderCell>
-                    <CTableHeaderCell className="bg-body-tertiary">User</CTableHeaderCell>
-                    <CTableHeaderCell className="bg-body-tertiary text-center">
-                      Country
-                    </CTableHeaderCell>
-                    <CTableHeaderCell className="bg-body-tertiary">Usage</CTableHeaderCell>
-                    <CTableHeaderCell className="bg-body-tertiary text-center">
-                      Payment Method
-                    </CTableHeaderCell>
-                    <CTableHeaderCell className="bg-body-tertiary">Activity</CTableHeaderCell>
-                  </CTableRow>
-                </CTableHead>
-                <CTableBody>
-                  {tableExample.map((item, index) => (
-                    <CTableRow v-for="item in tableItems" key={index}>
-                      <CTableDataCell className="text-center">
-                        <CAvatar size="md" src={item.avatar.src} status={item.avatar.status} />
-                      </CTableDataCell>
-                      <CTableDataCell>
-                        <div>{item.user.name}</div>
-                        <div className="small text-body-secondary text-nowrap">
-                          <span>{item.user.new ? 'New' : 'Recurring'}</span> | Registered:{' '}
-                          {item.user.registered}
-                        </div>
-                      </CTableDataCell>
-                      <CTableDataCell className="text-center">
-                        <CIcon size="xl" icon={item.country.flag} title={item.country.name} />
-                      </CTableDataCell>
-                      <CTableDataCell>
-                        <div className="d-flex justify-content-between text-nowrap">
-                          <div className="fw-semibold">{item.usage.value}%</div>
-                          <div className="ms-3">
-                            <small className="text-body-secondary">{item.usage.period}</small>
-                          </div>
-                        </div>
-                        <CProgress thin color={item.usage.color} value={item.usage.value} />
-                      </CTableDataCell>
-                      <CTableDataCell className="text-center">
-                        <CIcon size="xl" icon={item.payment.icon} />
-                      </CTableDataCell>
-                      <CTableDataCell>
-                        <div className="small text-body-secondary text-nowrap">Last login</div>
-                        <div className="fw-semibold text-nowrap">{item.activity}</div>
-                      </CTableDataCell>
-                    </CTableRow>
-                  ))}
-                </CTableBody>
-              </CTable>
+                    <div className="text-end" style={{ minWidth: 110 }}>
+                      <div className="fw-semibold">{n.health}</div>
+                      <div className="small text-success fw-semibold">{n.status}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </CCardBody>
           </CCard>
-        </CCol>
-      </CRow>
-    </>
+        </div>
+      </div>
+
+      <CButton
+        color="success"
+        className="position-fixed bottom-0 end-0 m-4 rounded-circle shadow"
+        style={{ width: 56, height: 56, padding: 0 }}
+      >
+        <CIcon icon={cilPlus} size="lg" />
+      </CButton>
+    </div>
   )
 }
 

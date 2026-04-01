@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { getBanners, deleteBanner, toggleBannerStatus } from '../../../api/banner.api'
 import Swal from 'sweetalert2'
 import { useNavigate } from 'react-router-dom'
+import ThemedTablePage from 'src/components/ThemedTablePage'
 
 const HomeBanner = () => {
   const navigate = useNavigate()
@@ -11,6 +12,7 @@ const HomeBanner = () => {
 
   const [currentPage, setCurrentPage] = useState(1)
   const bannersPerPage = 5
+  const [query, setQuery] = useState('')
 
   const loadBanners = async () => {
     try {
@@ -69,130 +71,126 @@ const HomeBanner = () => {
     }
   }
 
+  const filteredBanners = query.trim()
+    ? banners.filter((b) => String(b?.title || '').toLowerCase().includes(query.trim().toLowerCase()))
+    : banners
+
   // PAGINATION LOGIC
   const indexOfLast = currentPage * bannersPerPage
   const indexOfFirst = indexOfLast - bannersPerPage
-  const currentBanners = banners.slice(indexOfFirst, indexOfLast)
+  const currentBanners = filteredBanners.slice(indexOfFirst, indexOfLast)
 
-  const totalPages = Math.ceil(banners.length / bannersPerPage)
+  const totalPages = Math.ceil(filteredBanners.length / bannersPerPage)
 
-  if (loading) return <p>Loading banners...</p>
+  const rows = currentBanners.map((b, index) => ({ ...b, _rowIndex: indexOfFirst + index + 1 }))
+
+  const columns = [
+    { key: '_rowIndex', label: 'Sr No', render: (b) => b._rowIndex, headerStyle: { width: 80 } },
+    {
+      key: 'image',
+      label: 'Image',
+      render: (b) => (
+        <img
+          src={`http://localhost:5500${b.image_url}`}
+          alt={b.title}
+          style={{ width: 260, height: 90, objectFit: 'cover', borderRadius: 6 }}
+        />
+      ),
+    },
+    { key: 'title', label: 'Title', render: (b) => b.title },
+    { key: 'position', label: 'Position', render: (b) => b.position },
+    { key: 'sort_order', label: 'Order', render: (b) => b.sort_order },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (b) => (
+        <div className="form-check form-switch">
+          <input
+            className="form-check-input"
+            type="checkbox"
+            checked={b.is_active}
+            onChange={() => handleToggle(b)}
+          />
+        </div>
+      ),
+    },
+    {
+      key: 'action',
+      label: 'Action',
+      render: (b) => (
+        <>
+          <button className="btn btn-sm btn-primary me-2" onClick={() => navigate(`/banners/edit/${b.id}`)}>
+            Edit
+          </button>
+          <button className="btn btn-sm btn-danger" onClick={() => handleDelete(b.id)}>
+            Delete
+          </button>
+        </>
+      ),
+    },
+  ]
+
+  const filtersContent = (
+    <div className="d-grid gap-2">
+      <div>
+        <div className="small text-medium-emphasis mb-1">Search</div>
+        <input
+          className="form-control form-control-sm"
+          placeholder="Search banner title"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            setCurrentPage(1)
+          }}
+        />
+      </div>
+      <button
+        type="button"
+        className="btn btn-sm btn-outline-secondary"
+        onClick={() => {
+          setQuery('')
+          setCurrentPage(1)
+        }}
+        disabled={!query}
+      >
+        Reset
+      </button>
+    </div>
+  )
 
   return (
-    <div className="card">
-      <div className="card-header d-flex justify-content-between align-items-center">
-        <strong>Home Banners</strong>
-
-        <button className="btn btn-sm btn-success" onClick={() => navigate('/banners/add')}>
-          Add Banner
-        </button>
-      </div>
-
-      <div className="card-body">
-        {banners.length === 0 ? (
-          <p>No banners found</p>
-        ) : (
-          <>
-            <table className="table table-bordered align-middle">
-              <thead>
-                <tr>
-                  <th>Sr No</th>
-                  <th>Image</th>
-                  <th>Title</th>
-                  <th>Position</th>
-                  <th>Order</th>
-                  <th>Status</th>
-                  <th width="160">Action</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {currentBanners.map((b, index) => (
-                  <tr key={b.id}>
-                    <td>{indexOfFirst + index + 1}</td>
-
-                    <td>
-                      <img
-                        src={`http://localhost:5500${b.image_url}`}
-                        alt={b.title}
-                        style={{
-                          width: 260,
-                          height: 90,
-                          objectFit: 'cover',
-                          borderRadius: 6,
-                        }}
-                      />
-                    </td>
-
-                    <td>{b.title}</td>
-                    <td>{b.position}</td>
-                    <td>{b.sort_order}</td>
-
-                    <td>
-                      <div className="form-check form-switch">
-                        <input
-                          className="form-check-input"
-                          type="checkbox"
-                          checked={b.is_active}
-                          onChange={() => handleToggle(b)}
-                        />
-                      </div>
-                    </td>
-
-                    <td>
-                      <button
-                        className="btn btn-sm btn-primary me-2"
-                        onClick={() => navigate(`/banners/edit/${b.id}`)}
-                      >
-                        Edit
-                      </button>
-
-                      <button
-                        className="btn btn-sm btn-danger"
-                        onClick={() => handleDelete(b.id)}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {/* PAGINATION */}
-            <div className="d-flex justify-content-center mt-3">
-              <nav>
-                <ul className="pagination">
-
-                  <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
-                    <button className="page-link" onClick={() => setCurrentPage(currentPage - 1)}>
-                      Previous
-                    </button>
-                  </li>
-
-                  {[...Array(totalPages)].map((_, i) => (
-                    <li
-                      key={i}
-                      className={`page-item ${currentPage === i + 1 ? 'active' : ''}`}
-                    >
-                      <button className="page-link" onClick={() => setCurrentPage(i + 1)}>
-                        {i + 1}
-                      </button>
-                    </li>
-                  ))}
-
-                  <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
-                    <button className="page-link" onClick={() => setCurrentPage(currentPage + 1)}>
-                      Next
-                    </button>
-                  </li>
-
-                </ul>
-              </nav>
-            </div>
-          </>
-        )}
-      </div>
+    <div className="container py-4">
+      <ThemedTablePage
+        actions={{
+          filtersContent,
+          onExport: null,
+          primary: {
+            label: 'Add Banner',
+            color: 'success',
+            onClick: () => navigate('/banners/add'),
+          },
+        }}
+        topContent={<div className="mb-3"><h4 className="fw-bold mb-0 text-uppercase">Home Banners</h4></div>}
+        columns={columns}
+        rows={rows}
+        rowKey={(b) => b.id}
+        loading={loading}
+        emptyText={filteredBanners.length === 0 ? 'No banners found' : 'No banners match your filters'}
+        footerLeft={
+          <div className="small text-medium-emphasis">
+            Showing {rows.length} of {filteredBanners.length} banners
+          </div>
+        }
+        pagination={
+          totalPages > 1
+            ? {
+              page: currentPage,
+              totalPages,
+              onChange: (p) => setCurrentPage(p),
+            }
+            : null
+        }
+      />
     </div>
   )
 }

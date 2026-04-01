@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { get_sell_listings, assign_listing, transfer_listing, reject_listing, get_merchants } from 'src/api/system_service'
+import ThemedTablePage from 'src/components/ThemedTablePage'
 
 const STATUS_MAP = {
     pending: { id: 1, color: 'warning', label: 'Pending' },
@@ -87,6 +88,126 @@ const Listings = () => {
         { key: 'rejected', label: 'Rejected' },
     ]
 
+    const rows = listings.map((item, idx) => ({ ...item, _rowIndex: idx + 1 }))
+
+    const columns = [
+        {
+            key: '_rowIndex',
+            label: '#',
+            headerClassName: 'text-center',
+            cellClassName: 'text-center',
+            headerStyle: { width: 70 },
+            render: (item) => item._rowIndex,
+        },
+        {
+            key: 'user',
+            label: 'User',
+            render: (item) =>
+                item.first_name || item.last_name
+                    ? `${item.first_name || ''} ${item.last_name || ''}`.trim()
+                    : item.user_email || '—',
+        },
+        { key: 'category', label: 'Category', render: (item) => item.category || '—' },
+        { key: 'brand', label: 'Brand', render: (item) => item.brand || '—' },
+        { key: 'model', label: 'Model', render: (item) => item.model || '—' },
+        { key: 'config', label: 'Config', render: (item) => item.config_name || '—' },
+        {
+            key: 'base',
+            label: 'Base Price',
+            headerClassName: 'text-center',
+            cellClassName: 'text-center',
+            render: (item) => `₹${Number(item.base_price || 0).toLocaleString()}`,
+        },
+        {
+            key: 'quoted',
+            label: 'Quoted',
+            headerClassName: 'text-center',
+            cellClassName: 'text-center fw-semibold',
+            render: (item) => `₹${Number(item.quoted_price || 0).toLocaleString()}`,
+        },
+        {
+            key: 'expected',
+            label: 'Expected',
+            headerClassName: 'text-center',
+            cellClassName: 'text-center',
+            render: (item) => `₹${Number(item.expected_price || 0).toLocaleString()}`,
+        },
+        {
+            key: 'status',
+            label: 'Status',
+            headerClassName: 'text-center',
+            cellClassName: 'text-center',
+            render: (item) => (
+                <span className={`badge bg-${STATUS_MAP[item.status_label]?.color || 'secondary'}`}>
+                    {item.status_label || '—'}
+                </span>
+            ),
+        },
+        ...(tab === 'assigned' || tab === 'transferred'
+            ? [
+                {
+                    key: 'merchant',
+                    label: 'Merchant',
+                    render: (item) =>
+                        item.merchant_first_name
+                            ? `${item.merchant_first_name} ${item.merchant_last_name || ''}`.trim()
+                            : item.merchant_email || '—',
+                },
+            ]
+            : []),
+        {
+            key: 'date',
+            label: 'Date',
+            headerClassName: 'text-center',
+            cellClassName: 'text-center small',
+            render: (item) => (item.created_at ? new Date(item.created_at).toLocaleDateString() : '—'),
+        },
+        {
+            key: 'action',
+            label: 'Action',
+            headerClassName: 'text-center',
+            cellClassName: 'text-center',
+            render: (item) => (
+                <>
+                    {tab === 'pending' && (
+                        <>
+                            <button
+                                className="btn btn-sm btn-outline-primary me-1"
+                                onClick={() => setAssignModal(item.id)}
+                            >
+                                Assign
+                            </button>
+                            <button
+                                className="btn btn-sm btn-outline-danger"
+                                onClick={() => handleReject(item.id)}
+                            >
+                                Reject
+                            </button>
+                        </>
+                    )}
+                    {tab === 'assigned' && (
+                        <>
+                            <button
+                                className="btn btn-sm btn-outline-success me-1"
+                                onClick={() => handleTransfer(item.id)}
+                            >
+                                Transfer
+                            </button>
+                            <button
+                                className="btn btn-sm btn-outline-danger"
+                                onClick={() => handleReject(item.id)}
+                            >
+                                Reject
+                            </button>
+                        </>
+                    )}
+                    {tab === 'transferred' && <span className="text-muted small">Completed</span>}
+                    {tab === 'rejected' && <span className="text-muted small">Rejected</span>}
+                </>
+            ),
+        },
+    ]
+
     return (
         <div className="container py-4">
             {/* Toast */}
@@ -132,132 +253,24 @@ const Listings = () => {
                 </div>
             )}
 
-            <div className="card shadow-sm border-0">
-                <div className="card-header bg-white">
-                    <h4 className="fw-bold mb-3 text-uppercase">Lead Management</h4>
-                    <ul className="nav nav-tabs card-header-tabs">
-                        {tabs.map(t => (
-                            <li className="nav-item" key={t.key}>
-                                <button
-                                    className={`nav-link ${tab === t.key ? 'active' : ''}`}
-                                    onClick={() => setTab(t.key)}
-                                >
-                                    {t.label}
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-
-                <div className="card-body">
-                    {loading ? (
-                        <div className="text-center py-5">
-                            <div className="spinner-border text-primary" />
-                        </div>
-                    ) : (
-                        <div className="table-responsive">
-                            <table className="table table-hover align-middle">
-                                <thead className="table-light">
-                                    <tr className="text-center">
-                                        <th>#</th>
-                                        <th>User</th>
-                                        <th>Category</th>
-                                        <th>Brand</th>
-                                        <th>Model</th>
-                                        <th>Config</th>
-                                        <th>Base Price</th>
-                                        <th>Quoted</th>
-                                        <th>Expected</th>
-                                        <th>Status</th>
-                                        {tab === 'assigned' && <th>Merchant</th>}
-                                        {tab === 'transferred' && <th>Merchant</th>}
-                                        <th>Date</th>
-                                        <th>Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {listings.length > 0 ? listings.map((item, idx) => (
-                                        <tr key={item.id} className="text-center">
-                                            <td>{idx + 1}</td>
-                                            <td>
-                                                {item.first_name || item.last_name
-                                                    ? `${item.first_name || ''} ${item.last_name || ''}`.trim()
-                                                    : item.user_email || '—'}
-                                            </td>
-                                            <td>{item.category || '—'}</td>
-                                            <td>{item.brand || '—'}</td>
-                                            <td>{item.model || '—'}</td>
-                                            <td>{item.config_name || '—'}</td>
-                                            <td>₹{Number(item.base_price || 0).toLocaleString()}</td>
-                                            <td className="fw-semibold">₹{Number(item.quoted_price || 0).toLocaleString()}</td>
-                                            <td>₹{Number(item.expected_price || 0).toLocaleString()}</td>
-                                            <td>
-                                                <span className={`badge bg-${STATUS_MAP[item.status_label]?.color || 'secondary'}`}>
-                                                    {item.status_label || '—'}
-                                                </span>
-                                            </td>
-                                            {(tab === 'assigned' || tab === 'transferred') && (
-                                                <td>
-                                                    {item.merchant_first_name
-                                                        ? `${item.merchant_first_name} ${item.merchant_last_name || ''}`.trim()
-                                                        : item.merchant_email || '—'}
-                                                </td>
-                                            )}
-                                            <td className="small">{item.created_at ? new Date(item.created_at).toLocaleDateString() : '—'}</td>
-                                            <td>
-                                                {tab === 'pending' && (
-                                                    <>
-                                                        <button
-                                                            className="btn btn-sm btn-outline-primary me-1"
-                                                            onClick={() => setAssignModal(item.id)}
-                                                        >
-                                                            Assign
-                                                        </button>
-                                                        <button
-                                                            className="btn btn-sm btn-outline-danger"
-                                                            onClick={() => handleReject(item.id)}
-                                                        >
-                                                            Reject
-                                                        </button>
-                                                    </>
-                                                )}
-                                                {tab === 'assigned' && (
-                                                    <>
-                                                        <button
-                                                            className="btn btn-sm btn-outline-success me-1"
-                                                            onClick={() => handleTransfer(item.id)}
-                                                        >
-                                                            Transfer
-                                                        </button>
-                                                        <button
-                                                            className="btn btn-sm btn-outline-danger"
-                                                            onClick={() => handleReject(item.id)}
-                                                        >
-                                                            Reject
-                                                        </button>
-                                                    </>
-                                                )}
-                                                {tab === 'transferred' && (
-                                                    <span className="text-muted small">Completed</span>
-                                                )}
-                                                {tab === 'rejected' && (
-                                                    <span className="text-muted small">Rejected</span>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    )) : (
-                                        <tr>
-                                            <td colSpan="14" className="text-center text-muted py-4">
-                                                No listings found
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </div>
-            </div>
+            <ThemedTablePage
+                tabs={tabs}
+                activeTabKey={tab}
+                onTabChange={setTab}
+                actions={{
+                    onExport: null,
+                }}
+                topContent={
+                    <div className="mb-3">
+                        <h4 className="fw-bold mb-0 text-uppercase">Lead Management</h4>
+                    </div>
+                }
+                columns={columns}
+                rows={rows}
+                rowKey={(item) => item.id}
+                loading={loading}
+                emptyText="No listings found"
+            />
         </div>
     )
 }

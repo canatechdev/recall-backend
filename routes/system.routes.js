@@ -9,19 +9,21 @@ const authMiddleware = require('../middlewares/auth.middleware');
 router.get('/get_services', systemController.getServices)
 router.post('/create_service', upload.single('image'), reqBody, systemController.createService)
 router.put('/update_service/:id', upload.single('image'), reqBody, systemController.updateService)
+router.patch('/toggle_service/:id', reqBody, systemController.toggleService)
 router.delete('/delete_service/:id', systemController.deleteService);
 
 // router.get('/get_categories', systemController.getCategories)
 router.get('/get_categories/:sub', systemController.getCategories)
 router.post('/create_category', upload.single('image'), reqBody, systemController.createCategory)
 router.put('/update_category/:id', upload.single('image'), reqBody, systemController.updateCategory)
-router.delete('/delete_category/:id', systemController.deleteCategory)
+router.patch('/toggle_category/:id', reqBody, systemController.toggleCategory)
 
 router.get('/get_brands', systemController.getBrands)
 router.get('/get_brands/:cat_slug', systemController.getBrands)
 // router.get('/get_category_brands/:slug', systemController.getCategoryBrands)
 router.post('/create_brand', upload.single('image'), reqBody, systemController.createBrand)
 router.put('/update_brand/:id', upload.single('image'), reqBody, systemController.updateBrand)
+router.patch('/toggle_brand/:id', reqBody, systemController.toggleBrand)
 router.delete('/delete_brand/:id', systemController.deleteBrand)
 
 

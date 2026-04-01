@@ -3,11 +3,20 @@ import api from "./axios"
 export const get_services = () => {
     return api.get('system/get_services')
 }
+export const get_services_all = () => {
+    return api.get('system/get_services?all=true')
+}
 export const delete_service = (id) => {
     return api.delete('system/delete_service/' + id)
 }
 export const create_service = (formData) => {
     return api.post('system/create_service/', formData)
+}
+export const update_service = (id, formData) => {
+    return api.put('system/update_service/' + id, formData)
+}
+export const toggle_service = (id, status) => {
+    return api.patch('system/toggle_service/' + id, { status })
 }
 export const get_categories = (sub) => {
     return api.get(`system/get_categories/${sub}`);
@@ -15,15 +24,18 @@ export const get_categories = (sub) => {
 export const create_category = (data) => {
     return api.post('system/create_category/', data)
 }
-export const delete_category = (id) => {
-    return api.delete('system/delete_category/' + id)
+export const toggle_category = (id, status) => {
+    return api.patch('system/toggle_category/' + id, { status })
+}
+export const update_category = (id, data) => {
+    return api.put('system/update_category/' + id, data)
 }
 
 export const get_brands = () => {
     return api.get('system/get_brands/')
 }
 export const get_cat_brands = (catId) => {
-    return api.get('system/get_brands/' + catId)
+    return api.get('system/get_brands/' + catId + '?all=true')
 }
 
 // export const get_category_brands = (cat_slug) => {
@@ -31,6 +43,12 @@ export const get_cat_brands = (catId) => {
 // }
 export const create_brand = (data) => {
     return api.post('system/create_brand/', data)
+}
+export const update_brand = (id, data) => {
+    return api.put('system/update_brand/' + id, data)
+}
+export const toggle_brand = (id, status) => {
+    return api.patch('system/toggle_brand/' + id, { status })
 }
 export const delete_brand = (id) => {
     return api.delete('system/delete_brand/' + id)

@@ -109,7 +109,7 @@ node server.js
 
 ## 📚 API Reference
 
-> Base URL: `http://localhost:1000`
+> Base URL: `http://localhost:5500`
 
 ---
 

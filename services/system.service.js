@@ -1,11 +1,14 @@
 const pool = require("../config/database");
 const slugify = require('slugify')
 const deleteFile = require("../config/delete.config");
-exports.getServices = async () => {
-    const data = await pool.query(`SELECT s.id, s.name, img.url from services s
+exports.getServices = async ({ all } = {}) => {
+    const includeAll = String(all).toLowerCase() === 'true' || all === true || all === 1 || all === '1';
+    const whereClause = includeAll ? '' : 'WHERE s.is_active=True';
+    const data = await pool.query(`SELECT s.id, s.name, img.url, s.is_active status from services s
         JOIN service_images si ON s.id=si.service_id
         JOIN images img ON si.image_id=img.id
-        where is_active=True`);
+        ${whereClause}
+        ORDER BY s.id DESC`);
     return data.rows;
 }
 exports.createService = async (data) => {
@@ -45,6 +48,16 @@ exports.createService = async (data) => {
 }
 exports.deleteService = async (id) => {
     const data = await pool.query(`UPDATE services SET is_active=False WHERE id=$1 RETURNING id, name`, [id]);
+    return data.rows;
+}
+
+exports.toggleService = async (id, status) => {
+    const isEnabled = String(status).toLowerCase() === 'true' || status === true || status === 1 || status === '1';
+    const data = await pool.query(
+        `UPDATE services SET is_active=$1 WHERE id=$2 RETURNING id, name, is_active status`,
+        [isEnabled, id],
+    );
+    if (data.rowCount === 0) throw { status: 404, message: "Service not found" };
     return data.rows;
 }
 
@@ -95,11 +108,11 @@ exports.updateService = async (id, data) => {
 }
 
 exports.getCategories = async ({ sub }) => {
-    let whquery = "WHERE c1.is_active=True"
+    let whquery = ""; //WHERE c1.is_active=True
     if (sub.toString().toLowerCase() == 'true') {
-        whquery += " AND c1.parent_id IS NOT NULL"
+        whquery += " WHERE c1.parent_id IS NOT NULL"
     }
-    const data = await pool.query(`SELECT c1.id, c1.name, c1.slug, c2.name Parent, '/system/get_brands/'|| c1.slug route, img.url 
+    const data = await pool.query(`SELECT c1.id, c1.name, c1.slug, c2.name Parent, img.url, c1.is_active status 
         FROM categories c1 LEFT JOIN categories c2 ON c1.parent_id=c2.id
         JOIN category_images ci ON c1.id=ci.category_id
         JOIN images img ON ci.image_id=img.id
@@ -170,8 +183,8 @@ exports.createCategory = async (data) => {
         client.release();
     }
 };
-exports.deleteCategory = async (id) => {
-    const data = await pool.query(`UPDATE categories SET is_active=False WHERE id=$1 RETURNING id, name`, [id]);
+exports.toggleCategory = async (id, status) => {
+    const data = await pool.query(`UPDATE categories SET is_active=$1 WHERE id=$2 RETURNING id, name`, [status, id]);
     return data.rows;
 }
 
@@ -227,16 +240,18 @@ exports.updateCategory = async (id, data) => {
     }
 }
 
-exports.getBrands = async ({ cat_slug }) => {
+exports.getBrands = async ({ cat_slug, all }) => {
     // console.log(cat_slug, "category slug") // IGNORE
-    let whquery = " WHERE b.status=1";
+    // status: 1=active, 0=inactive, 2=deleted/deprecated
+    const includeAll = String(all).toLowerCase() === 'true' || all === true || all === 1 || all === '1';
+    let whquery = includeAll ? " WHERE b.status<>2" : " WHERE b.status=1";
     if (cat_slug) {
         const cat_data = await pool.query(`select c.id,c.slug from categories c where c.slug=$1`, [cat_slug]);
         if (cat_data.rowCount === 0) throw { status: 404, message: "Category not found" };
         whquery += " AND bc.category_id=" + cat_data.rows[0].id;
         // console.log(whquery,cat_data.rows, "whquery") // IGNORE
     }
-    const data = await pool.query(`select b.id, b.name, b.slug, img.url, count(DISTINCT ms.id) series_count
+    const data = await pool.query(`select b.id, b.name, b.slug, img.url, (b.status=1) status, count(DISTINCT ms.id) series_count
         from brands b
         join brand_categories bc on b.id = bc.brand_id
         join brand_images bi on b.id=bi.brand_id
@@ -246,6 +261,17 @@ exports.getBrands = async ({ cat_slug }) => {
         group by b.id, img.url
         `);
     // data.rows.map(b => b.route = `/product/brand/${b.slug}/products`)
+    return data.rows;
+}
+
+exports.toggleBrand = async (id, status) => {
+    const isEnabled = String(status).toLowerCase() === 'true' || status === true || status === 1 || status === '1';
+    const nextStatus = isEnabled ? 1 : 0;
+    const data = await pool.query(
+        `UPDATE brands SET status=$1 WHERE id=$2 AND status<>2 RETURNING id, name, (status=1) status`,
+        [nextStatus, id],
+    );
+    if (data.rowCount === 0) throw { status: 404, message: "Brand not found" };
     return data.rows;
 }
 // exports.getCategoryBrands = async (params) => {
@@ -281,11 +307,9 @@ exports.createBrand = async (data) => {
             throw { status: 404, message: "Invalid Category" };
 
         const exists = await client.query(
-            "SELECT 1 FROM brands WHERE slug=$1",
+            "SELECT id, name, slug FROM brands WHERE slug=$1",
             [slug]
         );
-        if (exists.rowCount >= 1)
-            throw { status: 409, message: "Brand already Exists" };
 
         const img = await client.query(
             `INSERT INTO images(url, alt_text, uploaded_by)
@@ -294,25 +318,42 @@ exports.createBrand = async (data) => {
         );
 
         imageInserted = true;
+        let brand_cat; let brand;
+        if (exists.rowCount >= 1) {
+            brand_cat = await client.query("select * from brands b join brand_categories bc on b.id=bc.brand_id where b.id=$1 and bc.category_id=$2", [exists.rows[0].id, category_id]);
+            if (brand_cat.rowCount >= 1) {
+                throw { status: 409, message: "Brand already Exists" };
+            } else {
+                await client.query(
+                    `INSERT INTO brand_categories(brand_id, category_id)
+                     VALUES ($1,$2)`,
+                    [exists.rows[0].id, category_id]
+                );
+            }
+            brand=exists;
+        }
+        else {
+            brand = await client.query(
+                `INSERT INTO brands(name, slug)
+                 VALUES ($1,$2)
+                 RETURNING id, name, slug`,
+                [name, slug]
+            );
+            await client.query(
+                `INSERT INTO brand_categories(brand_id, category_id)
+                 VALUES ($1,$2)`,
+                [brand.rows[0].id, category_id]
+            );
+            await client.query(
+                `INSERT INTO brand_images(brand_id, image_id)
+                 VALUES ($1,$2)`,
+                [brand.rows[0].id, img.rows[0].id]
+            );
+        }
 
-        const brand = await client.query(
-            `INSERT INTO brands(name, slug)
-             VALUES ($1,$2)
-             RETURNING id, name, slug`,
-            [name, slug]
-        );
+// console.log(brand.rows);
 
-        await client.query(
-            `INSERT INTO brand_categories(brand_id, category_id)
-             VALUES ($1,$2)`,
-            [brand.rows[0].id, category_id]
-        );
 
-        await client.query(
-            `INSERT INTO brand_images(brand_id, image_id)
-             VALUES ($1,$2)`,
-            [brand.rows[0].id, img.rows[0].id]
-        );
 
         await client.query("COMMIT");
         return brand.rows;

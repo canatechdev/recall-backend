@@ -29,6 +29,8 @@ const HomeFaqs = React.lazy(() => import('./views/pages/faqs/HomeFaq'));
 const AddFaq = React.lazy(() => import('./views/pages/faqs/AddFaq'));
 const EditFaq = React.lazy(() => import('./views/pages/faqs/EditFaq'));
 
+// TEST THEME
+const TestTheme = React.lazy(() => import('./views/pages/system/TestTheme'));
 
 // Base
 // const Accordion = React.lazy(() => import('./views/base/accordion/Accordion'))
@@ -114,11 +116,12 @@ const routes = [
   { path: '/faqs', name: 'Manage FAQs', element: HomeFaqs },
   { path: '/faqs/add', name: 'Add FAQ', element: AddFaq },
   { path: '/faqs/edit/:id', name: 'Edit FAQ', element: EditFaq },
+  { path: '/theme/test', name: 'Test Theme', element: TestTheme },
 
-
-  
-
+  { path: '/theme', name: 'Theme', element: TestTheme, exact: true },
+  { path: '/theme/colors', name: 'Colors', element: TestTheme },
   { path: '/theme/typography', name: 'Typography', element: Typography },
+  { path: '/base', name: 'Base', element: TestTheme, exact: true },
   { path: '/base/breadcrumbs', name: 'Breadcrumbs', element: Breadcrumbs },
   { path: '/base/cards', name: 'Cards', element: Brands },
   { path: '/base/carousels', name: 'Carousel', element: Carousels },

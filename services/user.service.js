@@ -25,7 +25,7 @@ exports.getUsers = async (params = {}) => {
 }
 exports.deleteUser = async (params) => {
     const { id } = params
-    const data = await pool.query(`UPDATE users SET status=2 WHERE id=$1 RETURNING id, email`,
+    const data = await pool.query(`UPDATE users SET status=3 WHERE id=$1 RETURNING id, email`,
         [id]);
     return data.rows;
 }

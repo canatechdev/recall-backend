@@ -3,7 +3,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { sendEmail } = require("../providers/email.provider");
 const { v7: uuid7 } = require('uuid');
-const { password } = require("pg/lib/defaults");
+// const { password } = require("pg/lib/defaults");
 
 
 const SALT_ROUNDS = 10;
@@ -264,6 +264,7 @@ exports.loginUser = async (data) => {
 };
 
 exports.refreshToken = async (cookies) => {
+    console.log( "REFRESH TOKEN RESULT")
     // console.log(req.cookies)
     const { refreshToken } = cookies;
 
