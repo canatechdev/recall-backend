@@ -80,6 +80,10 @@ export const create_model = (data) => {
     return api.post('system/models/', data)
 }
 
+export const update_model = (id, data) => {
+    return api.put('system/models/' + id, data)
+}
+
 
 
 export const get_users = () => {
@@ -112,6 +116,10 @@ export const get_brand_series = (id) => {
 
 export const create_series = (data) => {
     return api.post('system/series/', data)
+}
+
+export const update_series = (id, data) => {
+    return api.put('system/series/' + id, data)
 }
 
 export const save_product = (data) => {

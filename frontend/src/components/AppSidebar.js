@@ -8,6 +8,7 @@ import {
   CSidebarFooter,
   CSidebarHeader,
   CSidebarToggler,
+  useColorModes,
 } from '@coreui/react'
 import CIcon from '@coreui/icons-react'
 
@@ -23,11 +24,21 @@ const AppSidebar = () => {
   const dispatch = useDispatch()
   const unfoldable = useSelector((state) => state.sidebarUnfoldable)
   const sidebarShow = useSelector((state) => state.sidebarShow)
+  const sidebarColorScheme = useSelector((state) => state.sidebarColorScheme || 'auto')
+  const { colorMode } = useColorModes('coreui-free-react-admin-template-theme')
+
+  const resolvedBaseScheme = (() => {
+    if (colorMode === 'dark') return 'dark'
+    if (colorMode === 'light') return 'light'
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  })()
+
+  const resolvedColorScheme = sidebarColorScheme === 'auto' ? resolvedBaseScheme : sidebarColorScheme
 
   return (
     <CSidebar
       className="border-end"
-      colorScheme="dark"
+      colorScheme={resolvedColorScheme}
       position="fixed"
       unfoldable={unfoldable}
       visible={sidebarShow}
@@ -42,7 +53,7 @@ const AppSidebar = () => {
         </CSidebarBrand>
         <CCloseButton
           className="d-lg-none"
-          dark
+          dark={resolvedColorScheme === 'dark'}
           onClick={() => dispatch({ type: 'set', sidebarShow: false })}
         />
       </CSidebarHeader>

@@ -6,6 +6,8 @@ const EditBanner = () => {
   const { id } = useParams()
   const navigate = useNavigate()
 
+  const apiBase = (import.meta.env.VITE_API_URL || 'http://localhost:5500/').replace(/\/$/, '')
+
   const [loading, setLoading] = useState(true)
 
   const [form, setForm] = useState({
@@ -34,7 +36,7 @@ const EditBanner = () => {
       })
 
       if (banner.image_url) {
-        setImagePreview(`http://localhost:5500${banner.image_url}`)
+        setImagePreview(`${apiBase}${banner.image_url}`)
       }
 
     } catch (err) {

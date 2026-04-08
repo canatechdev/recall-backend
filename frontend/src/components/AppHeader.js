@@ -5,6 +5,8 @@ import {
   CContainer,
   CDropdown,
   CDropdownItem,
+  CDropdownDivider,
+  CDropdownHeader,
   CDropdownMenu,
   CDropdownToggle,
   CHeader,
@@ -34,6 +36,24 @@ const AppHeader = () => {
 
   const dispatch = useDispatch()
   const sidebarShow = useSelector((state) => state.sidebarShow)
+  const headerColorScheme = useSelector((state) => state.headerColorScheme || 'auto')
+  const sidebarColorScheme = useSelector((state) => state.sidebarColorScheme || 'auto')
+
+  const resolvedBaseScheme = (() => {
+    if (colorMode === 'dark') return 'dark'
+    if (colorMode === 'light') return 'light'
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  })()
+
+  const resolvedHeaderScheme = headerColorScheme === 'auto' ? resolvedBaseScheme : headerColorScheme
+
+  const setPref = (key, value) => {
+    try {
+      window.localStorage.setItem(key, value)
+    } catch {
+      // ignore
+    }
+  }
 
   useEffect(() => {
     const handleScroll = () => {
@@ -46,7 +66,12 @@ const AppHeader = () => {
   }, [])
 
   return (
-    <CHeader position="sticky" className="mb-4 p-0" ref={headerRef}>
+    <CHeader
+      position="sticky"
+      className="mb-4 p-0"
+      ref={headerRef}
+      colorScheme={resolvedHeaderScheme}
+    >
       <CContainer className="border-bottom px-4" fluid>
         <CHeaderToggler
           onClick={() => dispatch({ type: 'set', sidebarShow: !sidebarShow })}
@@ -65,10 +90,10 @@ const AppHeader = () => {
           </CNavItem>
         </CHeaderNav>
         <CHeaderNav className="ms-auto">
-          
+
           <CNavItem>
             <CNavLink href="#">
-               <CIcon icon={cilBell} size="lg" /> {/* cilList */}
+              <CIcon icon={cilBell} size="lg" /> {/* cilList */}
             </CNavLink>
           </CNavItem>
         </CHeaderNav>
@@ -87,6 +112,7 @@ const AppHeader = () => {
               )}
             </CDropdownToggle>
             <CDropdownMenu>
+              <CDropdownHeader className="bg-body-secondary fw-semibold">App Theme</CDropdownHeader>
               <CDropdownItem
                 active={colorMode === 'light'}
                 className="d-flex align-items-center"
@@ -113,6 +139,78 @@ const AppHeader = () => {
                 onClick={() => setColorMode('auto')}
               >
                 <CIcon className="me-2" icon={cilContrast} size="lg" /> Auto
+              </CDropdownItem>
+
+              <CDropdownDivider />
+              <CDropdownHeader className="bg-body-secondary fw-semibold">Sidebar</CDropdownHeader>
+              <CDropdownItem
+                active={sidebarColorScheme === 'auto'}
+                as="button"
+                type="button"
+                onClick={() => {
+                  dispatch({ type: 'set', sidebarColorScheme: 'auto' })
+                  setPref('resello_sidebarColorScheme', 'auto')
+                }}
+              >
+                Follow theme
+              </CDropdownItem>
+              <CDropdownItem
+                active={sidebarColorScheme === 'light'}
+                as="button"
+                type="button"
+                onClick={() => {
+                  dispatch({ type: 'set', sidebarColorScheme: 'light' })
+                  setPref('resello_sidebarColorScheme', 'light')
+                }}
+              >
+                Light
+              </CDropdownItem>
+              <CDropdownItem
+                active={sidebarColorScheme === 'dark'}
+                as="button"
+                type="button"
+                onClick={() => {
+                  dispatch({ type: 'set', sidebarColorScheme: 'dark' })
+                  setPref('resello_sidebarColorScheme', 'dark')
+                }}
+              >
+                Dark
+              </CDropdownItem>
+
+              <CDropdownDivider />
+              <CDropdownHeader className="bg-body-secondary fw-semibold">Header</CDropdownHeader>
+              <CDropdownItem
+                active={headerColorScheme === 'auto'}
+                as="button"
+                type="button"
+                onClick={() => {
+                  dispatch({ type: 'set', headerColorScheme: 'auto' })
+                  setPref('resello_headerColorScheme', 'auto')
+                }}
+              >
+                Follow theme
+              </CDropdownItem>
+              <CDropdownItem
+                active={headerColorScheme === 'light'}
+                as="button"
+                type="button"
+                onClick={() => {
+                  dispatch({ type: 'set', headerColorScheme: 'light' })
+                  setPref('resello_headerColorScheme', 'light')
+                }}
+              >
+                Light
+              </CDropdownItem>
+              <CDropdownItem
+                active={headerColorScheme === 'dark'}
+                as="button"
+                type="button"
+                onClick={() => {
+                  dispatch({ type: 'set', headerColorScheme: 'dark' })
+                  setPref('resello_headerColorScheme', 'dark')
+                }}
+              >
+                Dark
               </CDropdownItem>
             </CDropdownMenu>
           </CDropdown>

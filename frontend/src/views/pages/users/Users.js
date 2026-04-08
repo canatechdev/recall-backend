@@ -13,6 +13,8 @@ import {
 } from 'src/api/system_service'
 import ThemedTablePage from 'src/components/ThemedTablePage'
 
+import { downloadCsv } from 'src/utils/csv'
+
 const STATUS_LABELS = {
     1: { label: 'Active', badge: 'success' },
     2: { label: 'Suspended', badge: 'warning' },
@@ -36,23 +38,6 @@ const formatJoinedDate = (value) => {
     const date = new Date(value)
     if (Number.isNaN(date.getTime())) return '—'
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' })
-}
-
-const downloadCsv = ({ filename, rows }) => {
-    const escapeCell = (cell) => {
-        const str = String(cell ?? '')
-        if (/[\",\n]/.test(str)) return `\"${str.replaceAll('\"', '\"\"')}\"`
-        return str
-    }
-
-    const csv = rows.map((row) => row.map(escapeCell).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    a.click()
-    URL.revokeObjectURL(url)
 }
 
 const Users = () => {
@@ -210,11 +195,6 @@ const Users = () => {
                     </CBadge>
                 )
             },
-        },
-        {
-            key: 'joined',
-            label: 'Joined Date',
-            render: (u) => formatJoinedDate(u.created_at),
         },
         {
             key: 'actions',

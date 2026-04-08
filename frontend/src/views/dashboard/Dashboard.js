@@ -2,7 +2,9 @@ import React, { useMemo, useState } from 'react'
 
 import { CAvatar, CBadge, CButton, CButtonGroup, CCard, CCardBody, CCol, CProgress, CRow } from '@coreui/react'
 import CIcon from '@coreui/icons-react'
-import { cilCloudDownload, cilGlobeAlt, cilPeople, cilPlus, cilStorage, cilSwapHorizontal, cilWallet } from '@coreui/icons'
+import { cilCloudDownload, cilGlobeAlt, cilPeople, cilStorage, cilSwapHorizontal, cilWallet } from '@coreui/icons'
+
+import { downloadCsv } from 'src/utils/csv'
 
 import avatar1 from 'src/assets/images/avatars/1.jpg'
 import avatar2 from 'src/assets/images/avatars/2.jpg'
@@ -191,7 +193,20 @@ const Dashboard = () => {
             <div className="h3 fw-bold mb-1">Performance Overview</div>
             <div className="text-body-secondary">Real-time insight into your platform ecosystem.</div>
           </div>
-          <CButton color="success" className="rounded-pill px-4">
+          <CButton
+            color="success"
+            className="rounded-pill px-4"
+            onClick={() => {
+              downloadCsv({
+                filename: `dashboard_export_${new Date().toISOString().slice(0, 10)}.csv`,
+                rows: [
+                  ['Section', 'Label', 'Value'],
+                  ...stats.map((s) => ['Stats', s.label, s.value]),
+                  ...nodes.map((n) => ['Nodes', n.name, `${n.load}% load, ${n.health}`]),
+                ],
+              })
+            }}
+          >
             <CIcon icon={cilCloudDownload} className="me-2" />
             Export Data
           </CButton>
@@ -327,13 +342,6 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <CButton
-        color="success"
-        className="position-fixed bottom-0 end-0 m-4 rounded-circle shadow"
-        style={{ width: 56, height: 56, padding: 0 }}
-      >
-        <CIcon icon={cilPlus} size="lg" />
-      </CButton>
     </div>
   )
 }

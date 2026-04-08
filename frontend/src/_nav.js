@@ -63,12 +63,7 @@ const _nav = [
     to: '/leads',
     icon: <CIcon icon={cilTransfer} customClassName="nav-icon" />,
   },
-  {
-    component: CNavItem,
-    name: 'Rejected Leads',
-    to: '/leads/rejected',
-    icon: <CIcon icon={cilTrash} customClassName="nav-icon" />,
-  },
+
   {
     component: CNavTitle,
     name: 'Inventory Management',
@@ -156,30 +151,30 @@ const _nav = [
       },
     ]
   },
-  {
-    component: CNavGroup,
-    name: 'Orders',
-    to: '/buttons',
-    icon: <CIcon icon={cilCursor} customClassName="nav-icon" />,
-    items: [
-      {
-        component: CNavItem,
-        name: 'Pending Orders',
-        to: '/buttons/buttons',
-      },
-      {
-        component: CNavItem,
-        name: 'Delivered Orders',
-        to: '/buttons/button-groups',
-      },
-      {
-        component: CNavItem,
-        name: 'Cancelled Orders',
-        to: '/buttons/dropdowns',
-      },
+  // {
+  //   component: CNavGroup,
+  //   name: 'Orders',
+  //   to: '/buttons',
+  //   icon: <CIcon icon={cilCursor} customClassName="nav-icon" />,
+  //   items: [
+  //     {
+  //       component: CNavItem,
+  //       name: 'Pending Orders',
+  //       to: '/buttons/buttons',
+  //     },
+  //     {
+  //       component: CNavItem,
+  //       name: 'Delivered Orders',
+  //       to: '/buttons/button-groups',
+  //     },
+  //     {
+  //       component: CNavItem,
+  //       name: 'Cancelled Orders',
+  //       to: '/buttons/dropdowns',
+  //     },
 
-    ]
-  },
+  //   ]
+  // },
   {
     component: CNavTitle,
     name: 'System Management',
@@ -208,12 +203,12 @@ const _nav = [
       },
     ],
   },
-  {
-    component: CNavItem,
-    name: 'Categories',
-    href: 'https://coreui.io/react/docs/templates/installation/',
-    icon: <CIcon icon={cilDescription} customClassName="nav-icon" />,
-  },
+  // {
+  //   component: CNavItem,
+  //   name: 'Categories',
+  //   href: 'https://coreui.io/react/docs/templates/installation/',
+  //   icon: <CIcon icon={cilDescription} customClassName="nav-icon" />,
+  // },
 ]
 
 export default _nav

@@ -67,7 +67,7 @@ const ThemedTablePage = ({
             <CRow className="mb-3 align-items-center">
                 <CCol xs={12} md={8} className="mb-3 mb-md-0">
                     {tabs?.length ? (
-                        <div className="bg-light rounded-pill p-1 d-inline-flex gap-1 flex-wrap">
+                        <div className="bg-body-tertiary border rounded-pill p-1 d-inline-flex gap-1 flex-wrap">
                             {tabs.map((tab) => {
                                 const isActive = tab.key === activeTabKey
                                 return (
@@ -76,7 +76,7 @@ const ThemedTablePage = ({
                                         type="button"
                                         className={classNames(
                                             'btn btn-sm rounded-pill px-3',
-                                            isActive ? 'bg-white shadow-sm' : 'btn-light bg-transparent',
+                                            isActive ? 'bg-body shadow-sm' : 'btn-light bg-transparent',
                                         )}
                                         onClick={() => onTabChange?.(tab.key)}
                                     >
@@ -114,14 +114,12 @@ const ThemedTablePage = ({
                         </CButton>
                     )}
 
-                    <CButton
-                        color="light"
-                        disabled={!actions?.onExport}
-                        onClick={actions?.onExport}
-                    >
-                        <CIcon icon={cilCloudDownload} className="me-2" />
-                        {actions?.exportLabel || 'Export'}
-                    </CButton>
+                    {actions?.onExport ? (
+                        <CButton color="light" onClick={actions.onExport}>
+                            <CIcon icon={cilCloudDownload} className="me-2" />
+                            {actions?.exportLabel || 'Export'}
+                        </CButton>
+                    ) : null}
 
                     {actions?.primary ? (
                         <CButton

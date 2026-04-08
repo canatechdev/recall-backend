@@ -14,7 +14,7 @@ import {
     cilSettings,
     cilList,
 } from "@coreui/icons";
-import { get_categories, get_cat_brands, get_brand_series, create_series, get_models, create_model, get_model_configs, create_model_config, update_model_config, delete_model_config } from "../../../api/system_service";
+import { get_categories, get_cat_brands, get_brand_series, create_series, update_series, get_models, create_model, update_model, get_model_configs, create_model_config, update_model_config, delete_model_config } from "../../../api/system_service";
 
 // const BASE = "http://localhost:5500";
 
@@ -40,7 +40,7 @@ function InlineForm({ fields, onSave, onCancel, loading }) {
     };
 
     return (
-        <div className="border rounded p-3 mb-2 bg-white shadow-sm">
+        <div className="border rounded p-3 mb-2 bg-body shadow-sm">
             <div className="row g-2">
                 {fields.map((f) => (
                     <div key={f.key} className={f.col || "col-md-6"}>
@@ -119,6 +119,12 @@ function Breadcrumb({ items }) {
 export default function BrandModelManager() {
     const [toast, setToast] = useState(null);
 
+    const showToast = (type, msg) => {
+        setToast({ type, msg });
+        window.clearTimeout(showToast._t);
+        showToast._t = window.setTimeout(() => setToast(null), 3500);
+    };
+
     // Data
     const [categories, setCategories] = useState([]);
     const [brands, setBrands] = useState([]);
@@ -140,6 +146,9 @@ export default function BrandModelManager() {
     // Add form visibility
     const [showAddSeries, setShowAddSeries] = useState(false);
     const [showAddModel, setShowAddModel] = useState(false);
+
+    // Edit state
+    const [editingSeries, setEditingSeries] = useState(null); // {id, name, slug}
 
 
 
@@ -203,6 +212,7 @@ export default function BrandModelManager() {
         setSelectedSeries(null);
         setSeries([]); setModels([]);
         setShowAddSeries(false); setShowAddModel(false);
+        setEditingSeries(null);
         fetchBrands(cat.slug);
     };
 
@@ -211,12 +221,14 @@ export default function BrandModelManager() {
         setSelectedSeries(null);
         setModels([]);
         setShowAddSeries(false); setShowAddModel(false);
+        setEditingSeries(null);
         fetchSeries(brand.slug);
     };
 
     const selectSeries = (s) => {
         setSelectedSeries(s);
         setShowAddModel(false);
+        setEditingSeries(null);
         fetchModels(s.slug);
     };
 
@@ -232,9 +244,25 @@ export default function BrandModelManager() {
             if (res.status !== 200) throw new Error((await res.json()).message || "Failed");
             showToast("success", `Series "${vals.name}" created!`);
             setShowAddSeries(false);
+            setEditingSeries(null);
             fetchSeries(selectedBrand.slug);
         } catch (e) {
             showToast("danger", e.message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const saveSeriesUpdate = async (vals) => {
+        try {
+            if (!editingSeries?.id) return;
+            setSaving(true);
+            const res = await update_series(editingSeries.id, { name: vals.name });
+            showToast("success", `Series updated to "${res?.data?.name || vals.name}"`);
+            setEditingSeries(null);
+            fetchSeries(selectedBrand.slug);
+        } catch (e) {
+            showToast("danger", e?.response?.data?.message || e.message || "Failed to update series");
         } finally {
             setSaving(false);
         }
@@ -298,7 +326,7 @@ export default function BrandModelManager() {
 
             <div className="card shadow-sm border-0">
                 {/* Header */}
-                <div className="card-header bg-white d-flex justify-content-between align-items-center">
+                <div className="card-header bg-body d-flex justify-content-between align-items-center">
                     <div>
                         <h4 className="fw-bold text-uppercase mb-0">
                             <CIcon icon={panelTitle.icon} className="me-2 text-primary" />
@@ -324,7 +352,7 @@ export default function BrandModelManager() {
                     <div className="d-flex align-items-center gap-1 mb-4 small text-muted flex-wrap">
                         {["Category", "Brand", "Series", "Model"].map((s, i) => (
                             <span key={i} className="d-flex align-items-center gap-1">
-                                <span className={`badge rounded-pill ${activePanel >= i ? "bg-primary" : "bg-light text-secondary border"}`}>
+                                <span className={`badge rounded-pill ${activePanel >= i ? "bg-primary" : "bg-body-secondary text-body-secondary border"}`}>
                                     {i + 1}
                                 </span>
                                 <span className={activePanel === i ? "fw-semibold text-primary" : ""}>{s}</span>
@@ -363,7 +391,7 @@ export default function BrandModelManager() {
                             <div className="d-flex justify-content-end mb-3">
                                 <button
                                     className="btn btn-sm btn-outline-primary"
-                                    onClick={() => setShowAddSeries((p) => !p)}
+                                    onClick={() => { setShowAddSeries((p) => !p); setEditingSeries(null); }}
                                 >
                                     <CIcon icon={showAddSeries ? cilX : cilPlus} className="me-1" />
                                     {showAddSeries ? "Cancel" : "Add Series"}
@@ -381,12 +409,39 @@ export default function BrandModelManager() {
                                 />
                             )}
 
+                            {editingSeries && (
+                                <div className="mb-2">
+                                    <div className="d-flex align-items-center justify-content-between mb-1">
+                                        <div className="small text-muted">
+                                            Editing series: <strong>{editingSeries.name}</strong>
+                                        </div>
+                                        <button
+                                            className="btn btn-sm btn-outline-secondary"
+                                            onClick={() => setEditingSeries(null)}
+                                            disabled={saving}
+                                        >
+                                            <CIcon icon={cilX} className="me-1" /> Cancel edit
+                                        </button>
+                                    </div>
+                                    <InlineForm
+                                        key={editingSeries.id}
+                                        fields={[
+                                            { key: "name", label: "Series Name", placeholder: "e.g. Galaxy S", col: "col-md-4", default: editingSeries.name },
+                                        ]}
+                                        onSave={saveSeriesUpdate}
+                                        onCancel={() => setEditingSeries(null)}
+                                        loading={saving}
+                                    />
+                                </div>
+                            )}
+
                             <PanelList
                                 items={series}
                                 loading={loadingSeries}
                                 emptyMsg={`No series found for "${selectedBrand?.name}". Add one above.`}
                                 selected={selectedSeries}
                                 onSelect={selectSeries}
+                                onEdit={(s) => { setEditingSeries(s); setShowAddSeries(false); }}
                                 renderBadge={(s) => statusBadge(s.status)}
                                 renderSub={(s) => `${s.model_count} models`}
                             />
@@ -431,6 +486,8 @@ export default function BrandModelManager() {
                                 models={models}
                                 loading={loadingModels}
                                 emptyMsg={`No models in "${selectedSeries?.name}" yet. Add one above.`}
+                                refreshModels={() => fetchModels(selectedSeries.slug)}
+                                showToast={showToast}
                             />
                         </div>
                     )}
@@ -470,7 +527,7 @@ function PanelGrid({ items, loading, emptyMsg, onSelect, renderBadge, renderSub 
 }
 
 // ── Panel List (Series) ───────────────────────────────────────────────────────
-function PanelList({ items, loading, emptyMsg, selected, onSelect, renderBadge, renderSub }) {
+function PanelList({ items, loading, emptyMsg, selected, onSelect, onEdit, renderBadge, renderSub }) {
     if (loading) return <LoadingSpinner />;
     if (!items.length) return <EmptyState msg={emptyMsg} />;
 
@@ -479,21 +536,33 @@ function PanelList({ items, loading, emptyMsg, selected, onSelect, renderBadge, 
             {items.map((item, index) => {
                 const isSelected = selected?.slug === item.slug;
                 return (
-                    <button
-                        key={index}
-                        className={`btn w-100 text-start p-3 d-flex justify-content-between align-items-center ${isSelected ? "btn-primary" : "btn-outline-secondary"}`}
-                        style={{ borderRadius: 8 }}
-                        onClick={() => onSelect(item)}
-                    >
-                        <div>
-                            <div className="fw-semibold">{item.name}</div>
-                            <div className={`small ${isSelected ? "text-white-50" : "text-muted"}`}>{renderSub(item)}</div>
-                        </div>
-                        <div className="d-flex align-items-center gap-2">
-                            {!isSelected && renderBadge(item)}
-                            <CIcon icon={cilChevronRight} style={{ width: 14 }} />
-                        </div>
-                    </button>
+                    <div key={index} className="d-flex gap-2 align-items-stretch">
+                        <button
+                            className={`btn flex-grow-1 text-start p-3 d-flex justify-content-between align-items-center ${isSelected ? "btn-primary" : "btn-outline-secondary"}`}
+                            style={{ borderRadius: 8 }}
+                            onClick={() => onSelect(item)}
+                        >
+                            <div>
+                                <div className="fw-semibold">{item.name}</div>
+                                <div className={`small ${isSelected ? "text-white-50" : "text-muted"}`}>{renderSub(item)}</div>
+                            </div>
+                            <div className="d-flex align-items-center gap-2">
+                                {!isSelected && renderBadge(item)}
+                                <CIcon icon={cilChevronRight} style={{ width: 14 }} />
+                            </div>
+                        </button>
+
+                        {onEdit && (
+                            <button
+                                className={`btn ${isSelected ? "btn-outline-light" : "btn-outline-secondary"}`}
+                                style={{ borderRadius: 8, minWidth: 46 }}
+                                onClick={() => onEdit(item)}
+                                title="Edit series"
+                            >
+                                <CIcon icon={cilPencil} />
+                            </button>
+                        )}
+                    </div>
                 );
             })}
         </div>
@@ -501,13 +570,15 @@ function PanelList({ items, loading, emptyMsg, selected, onSelect, renderBadge, 
 }
 
 // ── Model Table ───────────────────────────────────────────────────────────────
-function ModelTable({ models, loading, emptyMsg }) {
+function ModelTable({ models, loading, emptyMsg, refreshModels, showToast }) {
     const [configModelSlug, setConfigModelSlug] = useState(null);
     const [viewModelSlug, setViewModelSlug] = useState(null);
+    const [editingModel, setEditingModel] = useState(null); // {id, name}
     const [configs, setConfigs] = useState([]);
     const [loadingConfigs, setLoadingConfigs] = useState(false);
     const [showAddConfig, setShowAddConfig] = useState(false);
     const [savingConfig, setSavingConfig] = useState(false);
+    const [savingModel, setSavingModel] = useState(false);
     const [editingConfig, setEditingConfig] = useState(null);
 
     const fetchConfigs = async (modelSlug) => {
@@ -529,6 +600,7 @@ function ModelTable({ models, loading, emptyMsg }) {
         } else {
             setConfigModelSlug(modelSlug);
             setViewModelSlug(null);
+            setEditingModel(null);
             fetchConfigs(modelSlug);
         }
         setShowAddConfig(false);
@@ -542,7 +614,32 @@ function ModelTable({ models, loading, emptyMsg }) {
         } else {
             setViewModelSlug(modelSlug);
             setConfigModelSlug(null);
+            setEditingModel(null);
             fetchConfigs(modelSlug);
+        }
+    };
+
+    const handleEditModel = (m) => {
+        setEditingModel({ id: m.id, name: m.name });
+        setConfigModelSlug(null);
+        setViewModelSlug(null);
+        setShowAddConfig(false);
+        setEditingConfig(null);
+        setConfigs([]);
+    };
+
+    const saveModelUpdate = async (vals) => {
+        try {
+            if (!editingModel?.id) return;
+            setSavingModel(true);
+            await update_model(editingModel.id, { name: vals.name });
+            showToast?.("success", `Model updated to "${vals.name}"`);
+            setEditingModel(null);
+            refreshModels?.();
+        } catch (e) {
+            showToast?.("danger", e?.response?.data?.message || e.message || "Failed to update model");
+        } finally {
+            setSavingModel(false);
         }
     };
 
@@ -589,7 +686,7 @@ function ModelTable({ models, loading, emptyMsg }) {
     return (
         <div className="table-responsive">
             <table className="table table-bordered align-middle">
-                <thead className="table-light">
+                <thead>
                     <tr>
                         <th>#</th>
                         <th>Model Name</th>
@@ -619,13 +716,50 @@ function ModelTable({ models, loading, emptyMsg }) {
                                         <CIcon icon={cilList} style={{ width: 20, height: 20 }} />
                                         <span className="my-auto">&nbsp;View</span>
                                     </button>
+
+                                    <button
+                                        className={`btn btn-sm ${editingModel?.id === m.id ? 'btn-warning' : 'btn-outline-warning'} d-flex`}
+                                        onClick={() => (editingModel?.id === m.id ? setEditingModel(null) : handleEditModel(m))}
+                                        disabled={!m.id}
+                                        title={!m.id ? 'Model id missing (refresh page)' : 'Edit model name'}
+                                    >
+                                        <CIcon icon={cilPencil} style={{ width: 20, height: 20 }} />
+                                        <span className="my-auto">&nbsp;Edit</span>
+                                    </button>
                                 </td>
                             </tr>
+
+                            {editingModel?.id === m.id && (
+                                <tr key={`edit-${m.id}`}>
+                                    <td colSpan="4" className="bg-body-tertiary p-3">
+                                        <div className="d-flex justify-content-between align-items-center mb-2">
+                                            <h6 className="fw-bold mb-0">Edit Model — {m.name}</h6>
+                                            <button
+                                                className="btn btn-sm btn-outline-secondary"
+                                                onClick={() => setEditingModel(null)}
+                                                disabled={savingModel}
+                                            >
+                                                <CIcon icon={cilX} className="me-1" /> Cancel
+                                            </button>
+                                        </div>
+
+                                        <InlineForm
+                                            key={m.id}
+                                            fields={[
+                                                { key: "name", label: "Model Name", placeholder: "e.g. Galaxy S24 Ultra", col: "col-md-5", default: m.name },
+                                            ]}
+                                            onSave={saveModelUpdate}
+                                            onCancel={() => setEditingModel(null)}
+                                            loading={savingModel}
+                                        />
+                                    </td>
+                                </tr>
+                            )}
 
                             {/* Configure panel — add/edit configs */}
                             {configModelSlug === m.slug && (
                                 <tr key={`config-${m.slug}`}>
-                                    <td colSpan="4" className="bg-light p-3">
+                                    <td colSpan="4" className="bg-body-tertiary p-3">
                                         <div className="d-flex justify-content-between align-items-center mb-3">
                                             <h6 className="fw-bold mb-0">Sell Configs — {m.name}</h6>
                                             <button
@@ -653,21 +787,37 @@ function ModelTable({ models, loading, emptyMsg }) {
                                             <EmptyState msg="No configs yet. Add one above." />
                                         ) : (
                                             <table className="table table-sm table-bordered mb-0">
-                                                <thead className="table-light">
+                                                <thead>
                                                     <tr><th>#</th><th>Config</th><th>Base Price</th><th>Active</th><th>Actions</th></tr>
                                                 </thead>
                                                 <tbody>
                                                     {configs.map((c, idx) => (
                                                         <tr key={c.id}>
                                                             <td className="text-muted small">{idx + 1}</td>
-                                                            <td>{c.name}</td>
-                                                            <td>₹{Number(c.base_price).toLocaleString()}</td>
+                                                            <td>
+                                                                {editingConfig?.id === c.id ? (
+                                                                    <span className="fw-semibold">Editing…</span>
+                                                                ) : (
+                                                                    c.name
+                                                                )}
+                                                            </td>
+                                                            <td>₹{Number(c.base_price || 0).toLocaleString()}</td>
                                                             <td>
                                                                 <span className={`badge ${c.is_active ? 'bg-success' : 'bg-secondary'}`}>
                                                                     {c.is_active ? 'Active' : 'Inactive'}
                                                                 </span>
                                                             </td>
                                                             <td className="d-flex gap-1">
+                                                                <button
+                                                                    className="btn btn-sm btn-outline-secondary"
+                                                                    onClick={() => {
+                                                                        setShowAddConfig(false);
+                                                                        setEditingConfig({ id: c.id, name: c.name, base_price: c.base_price });
+                                                                    }}
+                                                                    title="Edit config"
+                                                                >
+                                                                    Edit
+                                                                </button>
                                                                 <button
                                                                     className="btn btn-sm btn-outline-warning"
                                                                     onClick={() => handleUpdateConfig(c.id, 'is_active', !c.is_active)}
@@ -687,6 +837,48 @@ function ModelTable({ models, loading, emptyMsg }) {
                                                 </tbody>
                                             </table>
                                         )}
+
+                                        {editingConfig?.id ? (
+                                            <div className="mt-3">
+                                                <div className="d-flex align-items-center justify-content-between mb-1">
+                                                    <div className="small text-muted">
+                                                        Editing config: <strong>{editingConfig.name}</strong>
+                                                    </div>
+                                                    <button
+                                                        className="btn btn-sm btn-outline-secondary"
+                                                        onClick={() => setEditingConfig(null)}
+                                                        disabled={savingConfig}
+                                                    >
+                                                        <CIcon icon={cilX} className="me-1" /> Cancel edit
+                                                    </button>
+                                                </div>
+                                                <InlineForm
+                                                    key={editingConfig.id}
+                                                    fields={[
+                                                        { key: 'name', label: 'Config Name', placeholder: 'e.g. 6GB / 128GB', col: 'col-md-5', default: editingConfig.name },
+                                                        { key: 'base_price', label: 'Base Price (₹)', placeholder: 'e.g. 15000', col: 'col-md-5', default: String(editingConfig.base_price ?? '') },
+                                                    ]}
+                                                    onSave={async (vals) => {
+                                                        try {
+                                                            setSavingConfig(true);
+                                                            await update_model_config(editingConfig.id, {
+                                                                name: vals.name,
+                                                                base_price: vals.base_price === '' || vals.base_price == null ? null : parseFloat(vals.base_price),
+                                                            });
+                                                            showToast?.('success', 'Config updated');
+                                                            setEditingConfig(null);
+                                                            fetchConfigs(configModelSlug);
+                                                        } catch (e) {
+                                                            showToast?.('danger', e?.response?.data?.message || e.message || 'Failed to update config');
+                                                        } finally {
+                                                            setSavingConfig(false);
+                                                        }
+                                                    }}
+                                                    onCancel={() => setEditingConfig(null)}
+                                                    loading={savingConfig}
+                                                />
+                                            </div>
+                                        ) : null}
                                     </td>
                                 </tr>
                             )}
@@ -694,14 +886,14 @@ function ModelTable({ models, loading, emptyMsg }) {
                             {/* View panel — read-only list */}
                             {viewModelSlug === m.slug && (
                                 <tr key={`view-${m.slug}`}>
-                                    <td colSpan="4" className="bg-light p-3">
+                                    <td colSpan="4" className="bg-body-tertiary p-3">
                                         <h6 className="fw-bold mb-3">Configs — {m.name}</h6>
                                         {loadingConfigs ? <LoadingSpinner /> : configs.length === 0 ? (
                                             <EmptyState msg="No configs added yet." />
                                         ) : (
                                             <div className="d-flex flex-wrap gap-2">
                                                 {configs.map(c => (
-                                                    <div key={c.id} className={`border rounded p-2 px-3 ${c.is_active ? 'bg-white' : 'bg-light text-muted'}`}>
+                                                    <div key={c.id} className={`border rounded p-2 px-3 ${c.is_active ? 'bg-body' : 'bg-body-secondary text-muted'}`}>
                                                         <div className="fw-semibold small">{c.name}</div>
                                                         <div className="text-muted small">₹{Number(c.base_price).toLocaleString()}</div>
                                                     </div>
@@ -737,9 +929,3 @@ function EmptyState({ msg }) {
         </div>
     );
 }
-// ── API calls ────────────────────────────────────────────
-const showToast = (type, msg) => {
-    // setToast({ type, msg });
-    // setTimeout(() => setToast(null), 3500);
-    console.log('showing toast')
-};

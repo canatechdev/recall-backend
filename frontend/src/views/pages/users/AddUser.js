@@ -174,7 +174,7 @@ export default function AddUser() {
 
             <div className="card shadow-sm border-0">
                 {/* Header */}
-                <div className="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div className="card-header bg-body d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <h4 className="fw-bold text-uppercase mb-0">
                         <CIcon icon={cilUser} className="me-2 text-primary" />
                         Add User

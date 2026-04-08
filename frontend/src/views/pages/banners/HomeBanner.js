@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
-import { getBanners, deleteBanner, toggleBannerStatus } from '../../../api/banner.api'
+import { getBanners, toggleBannerStatus } from '../../../api/banner.api'
 import Swal from 'sweetalert2'
 import { useNavigate } from 'react-router-dom'
 import ThemedTablePage from 'src/components/ThemedTablePage'
 
 const HomeBanner = () => {
   const navigate = useNavigate()
+
+  const apiBase = (import.meta.env.VITE_API_URL || 'http://localhost:5500/').replace(/\/$/, '')
 
   const [banners, setBanners] = useState([])
   const [loading, setLoading] = useState(true)
@@ -29,37 +31,6 @@ const HomeBanner = () => {
     loadBanners()
   }, [])
 
-  // DELETE
-  const handleDelete = async (id) => {
-    const result = await Swal.fire({
-      title: 'Delete Banner?',
-      text: 'This banner will be permanently deleted.',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#d33',
-      cancelButtonColor: '#6c757d',
-      confirmButtonText: 'Yes, delete it',
-    })
-
-    if (result.isConfirmed) {
-      try {
-        await deleteBanner(id)
-        await loadBanners()
-
-        Swal.fire({
-          icon: 'success',
-          title: 'Deleted!',
-          text: 'Banner deleted successfully',
-          timer: 1500,
-          showConfirmButton: false,
-        })
-      } catch (err) {
-        console.error(err)
-        Swal.fire('Error', 'Failed to delete banner', 'error')
-      }
-    }
-  }
-
   // STATUS TOGGLE
   const handleToggle = async (banner) => {
     try {
@@ -69,6 +40,24 @@ const HomeBanner = () => {
       console.error(err)
       Swal.fire('Error', 'Failed to update status', 'error')
     }
+  }
+
+  const handleSuspend = async (banner) => {
+    const willSuspend = Boolean(banner?.is_active)
+    const result = await Swal.fire({
+      title: willSuspend ? 'Suspend Banner?' : 'Activate Banner?',
+      text: willSuspend
+        ? 'This banner will be suspended (soft delete).'
+        : 'This banner will become active again.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: willSuspend ? '#d33' : '#198754',
+      cancelButtonColor: '#6c757d',
+      confirmButtonText: willSuspend ? 'Yes, suspend' : 'Yes, activate',
+    })
+
+    if (!result.isConfirmed) return
+    await handleToggle(banner)
   }
 
   const filteredBanners = query.trim()
@@ -91,7 +80,7 @@ const HomeBanner = () => {
       label: 'Image',
       render: (b) => (
         <img
-          src={`http://localhost:5500${b.image_url}`}
+          src={`${apiBase}${b.image_url}`}
           alt={b.title}
           style={{ width: 260, height: 90, objectFit: 'cover', borderRadius: 6 }}
         />
@@ -104,14 +93,9 @@ const HomeBanner = () => {
       key: 'status',
       label: 'Status',
       render: (b) => (
-        <div className="form-check form-switch">
-          <input
-            className="form-check-input"
-            type="checkbox"
-            checked={b.is_active}
-            onChange={() => handleToggle(b)}
-          />
-        </div>
+        <span className={`badge ${b.is_active ? 'bg-success' : 'bg-secondary'}`}>
+          {b.is_active ? 'Active' : 'Suspended'}
+        </span>
       ),
     },
     {
@@ -122,8 +106,12 @@ const HomeBanner = () => {
           <button className="btn btn-sm btn-primary me-2" onClick={() => navigate(`/banners/edit/${b.id}`)}>
             Edit
           </button>
-          <button className="btn btn-sm btn-danger" onClick={() => handleDelete(b.id)}>
-            Delete
+          <button
+            className={`btn btn-sm ${b.is_active ? 'btn-outline-danger' : 'btn-outline-success'}`}
+            onClick={() => handleSuspend(b)}
+            title={b.is_active ? 'Suspend (soft delete)' : 'Activate'}
+          >
+            {b.is_active ? 'Suspend' : 'Activate'}
           </button>
         </>
       ),

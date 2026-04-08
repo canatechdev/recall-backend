@@ -184,7 +184,7 @@ const TestTheme = () => {
       onTabChange={setActiveType}
       actions={{
         filtersContent,
-        onExport: () => { },
+        onExport: null,
       }}
       columns={columns}
       rows={filtered}

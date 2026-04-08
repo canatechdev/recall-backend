@@ -6,7 +6,7 @@ const STATUS_MAP = {
     pending: { id: 1, color: 'warning', label: 'Pending' },
     assigned: { id: 2, color: 'info', label: 'Assigned' },
     rejected: { id: 3, color: 'danger', label: 'Rejected' },
-    transferred: { id: 4, color: 'success', label: 'Transferred' },
+    transferred: { id: 4, color: 'success', label: 'Completed' },
 }
 
 const Listings = () => {
@@ -84,7 +84,7 @@ const Listings = () => {
     const tabs = [
         { key: 'pending', label: 'Pending Leads' },
         { key: 'assigned', label: 'Assigned' },
-        { key: 'transferred', label: 'Transferred' },
+        { key: 'transferred', label: 'Completed' },
         { key: 'rejected', label: 'Rejected' },
     ]
 
