@@ -1,0 +1,1 @@
+import{q as t}from"./index-BSU86ErS.js";const q=()=>t.get("/faqs"),c=a=>t.post("/faqs",a),e=(a,s)=>t.put(`/faqs/${a}`,s),p=(a,s)=>t.patch(`/faqs/${a}/status`,{status:s});export{c,q as g,p as t,e as u};

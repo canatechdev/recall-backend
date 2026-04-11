@@ -1,0 +1,1 @@
+import{q as a}from"./index-BSU86ErS.js";const e=()=>a.get("/banners"),r=n=>a.post("/banners",n),o=n=>a.get(`/banners/${n}`),c=(n,t)=>a.put(`/banners/${n}`,t),g=(n,t)=>a.patch(`/banners/${n}/status`,{is_active:t});export{o as a,r as c,e as g,g as t,c as u};
