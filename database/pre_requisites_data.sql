@@ -45,7 +45,7 @@ INSERT INTO roles(
 INSERT INTO users(
 
 	email, phone, password)
-	VALUES ('sarthak@gmail.com', '7498605559', 'sarthak');
+	VALUES ('admin@gmail.com', '7498605559', '$2b$10$zsRVARoZofEJEcW42Zmks.XRhk1magppYaIYnWfHW.SeSwgBXRgtu');
 	
 INSERT INTO user_profile(
 	user_id,first_name,last_name

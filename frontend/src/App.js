@@ -1,5 +1,5 @@
 import React, { Suspense, useEffect } from 'react'
-import { HashRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 
 import { CSpinner, useColorModes } from '@coreui/react'
@@ -38,7 +38,7 @@ const App = () => {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <HashRouter>
+    <BrowserRouter>
       <AuthProvider>
         <Suspense
           fallback={
@@ -63,7 +63,7 @@ const App = () => {
           </Routes>
         </Suspense>
       </AuthProvider>
-    </HashRouter>
+    </BrowserRouter>
   )
 }
 

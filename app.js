@@ -5,7 +5,7 @@ const cookieParser = require("cookie-parser");
 const morgan = require('morgan');
 const responseLogger = require('./config/response.logger')
 const fs = require("fs");
-const path=require('path')
+const path = require('path')
 
 const authMiddleware = require("./middlewares/auth.middleware");
 const app = express();
@@ -94,14 +94,14 @@ app.use(error_handler)
 
 
 // 200 Health Check
-app.get("/health", (req, res) => {
+app.get("/api/health", (req, res) => {
   res.status(200).json({ status: "success", code: 200 });
 });
 
 
 // LOGS
 
-app.get("/logs", (req, res) => {
+app.get("/api/logs", (req, res) => {
   const d = new Date().toISOString().split("T")[0];
   const logs = fs.readFileSync("logs/app.log." + d, "utf8")
     .trim()
@@ -110,7 +110,7 @@ app.get("/logs", (req, res) => {
   res.json(logs.reverse());
 });
 
-app.get("/logs_clean", (req, res) => {
+app.get("/api/logs_clean", (req, res) => {
   fs.writeFileSync("logs/app.log." + new Date().toISOString().split("T")[0], "");
   res.json({ message: "Logs cleaned" });
 });
