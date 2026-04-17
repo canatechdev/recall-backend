@@ -38,7 +38,7 @@ const App = () => {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <BrowserRouter>
+    <BrowserRouter basename='/admin'>
       <AuthProvider>
         <Suspense
           fallback={
