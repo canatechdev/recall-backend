@@ -3,9 +3,13 @@ import react from '@vitejs/plugin-react'
 import path from 'node:path'
 import autoprefixer from 'autoprefixer'
 
-export default defineConfig(() => {
+export default defineConfig(({ mode }) => {
+  const isProd = mode === 'production'
+
   return {
-    base: './',
+    // Use an absolute base in production so refreshing nested routes like
+    // /admin/categories/ doesn't try to load /admin/categories/assets/*.
+    base: isProd ? '/admin/' : '/',
     build: {
       outDir: '../public/admin/' 
     },
