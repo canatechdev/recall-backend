@@ -1,0 +1,1 @@
+import{q as n}from"./index-DMHfR0uz.js";const e=()=>n.get("/api/banners"),r=a=>n.post("/api/banners",a),p=a=>n.get(`/api/banners/${a}`),o=(a,t)=>n.put(`/api/banners/${a}`,t),c=(a,t)=>n.patch(`/api/banners/${a}/status`,{is_active:t});export{p as a,r as c,e as g,c as t,o as u};

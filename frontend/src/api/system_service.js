@@ -19,7 +19,7 @@ export const toggle_service = (id, status) => {
     return api.patch('api/system/toggle_service/' + id, { status })
 }
 export const get_categories = (sub) => {
-    return api.get(`system/get_categories/${sub}`);
+    return api.get(`api/system/get_categories/${sub}`);
 }
 export const create_category = (data) => {
     return api.post('api/system/create_category/', data)
