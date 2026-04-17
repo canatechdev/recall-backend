@@ -133,7 +133,7 @@ app.use((req, res, next) => {
   res.sendFile(path.join(appPath, 'index.html'));
 });
 
-// 7. ERROR HANDLING
+// 7 ERROR HANDLING
 const error_handler = require('./middlewares/error_handler.middleware');
 app.use(error_handler);
 
