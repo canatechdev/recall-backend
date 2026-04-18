@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { get_services_all, create_service, toggle_service, update_service } from "src/api/system_service"
+import { get_services_all, create_service, delete_service, toggle_service, update_service } from "src/api/system_service"
 import CIcon from '@coreui/icons-react'
 import { cilNoteAdd, cilPlus, cilX } from '@coreui/icons'
 import ThemedTablePage from 'src/components/ThemedTablePage'
@@ -109,6 +109,18 @@ const Services = () => {
         }
     }
 
+    const deleteService = async (id) => {
+        if (!id) return
+        if (!confirm('Delete this service?')) return
+        try {
+            await delete_service(id)
+            showToast('success', 'Service deleted')
+            fetchServices()
+        } catch (err) {
+            showToast('danger', err.response?.data?.message || 'Failed to delete service.')
+        }
+    }
+
     const filteredServices = useMemo(() => {
         const q = query.trim().toLowerCase()
         return services
@@ -168,6 +180,9 @@ const Services = () => {
                         className={`btn btn-sm btn-outline-${s.status === true ? 'danger' : 'info'}`}
                     >
                         {s.status === true ? 'Suspend' : 'Enable'}
+                    </button>
+                    <button onClick={() => deleteService(s.id)} className="btn btn-sm btn-outline-danger">
+                        Delete
                     </button>
                 </div>
             ),

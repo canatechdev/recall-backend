@@ -5,6 +5,7 @@ import {
     cilX,
     cilCheck,
     cilPencil,
+    cilTrash,
     cilChevronRight,
     cilReload,
     cilTag,
@@ -14,7 +15,7 @@ import {
     cilSettings,
     cilList,
 } from "@coreui/icons";
-import { get_categories, get_cat_brands, get_brand_series, create_series, update_series, get_models, create_model, update_model, get_model_configs, create_model_config, update_model_config, delete_model_config } from "../../../api/system_service";
+import { get_categories, get_cat_brands, get_brand_series, create_series, update_series, delete_series, get_models, create_model, update_model, delete_model, get_model_configs, create_model_config, update_model_config, delete_model_config } from "../../../api/system_service";
 
 // const BASE = "http://localhost:5500";
 
@@ -268,6 +269,24 @@ export default function BrandModelManager() {
         }
     };
 
+    const handleDeleteSeries = async (s) => {
+        if (!s?.id) return;
+        if (!confirm(`Delete series "${s.name}"? This will hide it from the list.`)) return;
+        try {
+            await delete_series(s.id);
+            showToast("success", "Series deleted");
+            if (selectedSeries?.id === s.id) {
+                setSelectedSeries(null);
+                setModels([]);
+            }
+            setEditingSeries(null);
+            setShowAddSeries(false);
+            fetchSeries(selectedBrand.slug);
+        } catch (e) {
+            showToast("danger", e?.response?.data?.message || e.message || "Failed to delete series");
+        }
+    }
+
     const saveModel = async (vals) => {
         try {
             setSaving(true);
@@ -442,6 +461,7 @@ export default function BrandModelManager() {
                                 selected={selectedSeries}
                                 onSelect={selectSeries}
                                 onEdit={(s) => { setEditingSeries(s); setShowAddSeries(false); }}
+                                onDelete={handleDeleteSeries}
                                 renderBadge={(s) => statusBadge(s.status)}
                                 renderSub={(s) => `${s.model_count} models`}
                             />
@@ -527,7 +547,7 @@ function PanelGrid({ items, loading, emptyMsg, onSelect, renderBadge, renderSub 
 }
 
 // ── Panel List (Series) ───────────────────────────────────────────────────────
-function PanelList({ items, loading, emptyMsg, selected, onSelect, onEdit, renderBadge, renderSub }) {
+function PanelList({ items, loading, emptyMsg, selected, onSelect, onEdit, onDelete, renderBadge, renderSub }) {
     if (loading) return <LoadingSpinner />;
     if (!items.length) return <EmptyState msg={emptyMsg} />;
 
@@ -560,6 +580,17 @@ function PanelList({ items, loading, emptyMsg, selected, onSelect, onEdit, rende
                                 title="Edit series"
                             >
                                 <CIcon icon={cilPencil} />
+                            </button>
+                        )}
+
+                        {onDelete && (
+                            <button
+                                className={`btn ${isSelected ? "btn-outline-light" : "btn-outline-danger"}`}
+                                style={{ borderRadius: 8, minWidth: 46 }}
+                                onClick={() => onDelete(item)}
+                                title="Delete series"
+                            >
+                                <CIcon icon={cilTrash} />
                             </button>
                         )}
                     </div>
@@ -632,7 +663,9 @@ function ModelTable({ models, loading, emptyMsg, refreshModels, showToast }) {
         try {
             if (!editingModel?.id) return;
             setSavingModel(true);
-            await update_model(editingModel.id, { name: vals.name });
+            const formData = new FormData();
+            formData.append('name', vals.name);
+            await update_model(editingModel.id, formData);
             showToast?.("success", `Model updated to "${vals.name}"`);
             setEditingModel(null);
             refreshModels?.();
@@ -643,18 +676,54 @@ function ModelTable({ models, loading, emptyMsg, refreshModels, showToast }) {
         }
     };
 
+    const handleDeleteModel = async (m) => {
+        if (!m?.id) return;
+        if (!confirm(`Delete model "${m.name}"? This cannot be undone.`)) return;
+        try {
+            await delete_model(m.id);
+            showToast?.('success', 'Model deleted');
+            setEditingModel(null);
+            setConfigModelSlug(null);
+            setViewModelSlug(null);
+            setConfigs([]);
+            setShowAddConfig(false);
+            setEditingConfig(null);
+            refreshModels?.();
+        } catch (e) {
+            showToast?.('danger', e?.response?.data?.message || e.message || 'Failed to delete model');
+        }
+    };
+
     const saveConfig = async (vals) => {
         try {
+            const configName = String(vals?.name || '').trim();
+            const modelSlug = configModelSlug;
+            const rawPrice = String(vals?.base_price ?? '').trim();
+            const basePrice = parseFloat(rawPrice.replace(/,/g, ''));
+
+            if (!modelSlug) {
+                showToast?.('danger', 'Model slug missing. Refresh and try again.');
+                return;
+            }
+            if (!configName) {
+                showToast?.('danger', 'Config name is required');
+                return;
+            }
+            if (!Number.isFinite(basePrice)) {
+                showToast?.('danger', 'Base price is required');
+                return;
+            }
+
             setSavingConfig(true);
             await create_model_config({
-                model_slug: configModelSlug,
-                name: vals.name,
-                base_price: parseFloat(vals.base_price)
+                model_slug: modelSlug,
+                name: configName,
+                base_price: basePrice,
             });
             setShowAddConfig(false);
-            fetchConfigs(configModelSlug);
+            fetchConfigs(modelSlug);
         } catch (e) {
-            console.log(e?.response?.data?.message || "Failed to save config");
+            showToast?.('danger', e?.response?.data?.message || e.message || 'Failed to save config');
         } finally {
             setSavingConfig(false);
         }
@@ -705,6 +774,8 @@ function ModelTable({ models, loading, emptyMsg, refreshModels, showToast }) {
                                     <button
                                         className={`btn btn-sm ${configModelSlug === m.slug ? 'btn-primary' : 'btn-outline-primary'} d-flex`}
                                         onClick={() => handleConfigure(m.slug)}
+                                        disabled={!m.slug}
+                                        title={!m.slug ? 'Model slug missing (refresh page)' : 'Configure sell configs'}
                                     >
                                         <CIcon icon={cilSettings} style={{ width: 20, height: 20 }} />
                                         <span className="my-auto">&nbsp;Configure</span>
@@ -712,6 +783,8 @@ function ModelTable({ models, loading, emptyMsg, refreshModels, showToast }) {
                                     <button
                                         className={`btn btn-sm ${viewModelSlug === m.slug ? 'btn-primary' : 'btn-outline-primary'} d-flex`}
                                         onClick={() => handleView(m.slug)}
+                                        disabled={!m.slug}
+                                        title={!m.slug ? 'Model slug missing (refresh page)' : 'View configs'}
                                     >
                                         <CIcon icon={cilList} style={{ width: 20, height: 20 }} />
                                         <span className="my-auto">&nbsp;View</span>
@@ -725,6 +798,16 @@ function ModelTable({ models, loading, emptyMsg, refreshModels, showToast }) {
                                     >
                                         <CIcon icon={cilPencil} style={{ width: 20, height: 20 }} />
                                         <span className="my-auto">&nbsp;Edit</span>
+                                    </button>
+
+                                    <button
+                                        className="btn btn-sm btn-outline-danger d-flex"
+                                        onClick={() => handleDeleteModel(m)}
+                                        disabled={!m.id}
+                                        title={!m.id ? 'Model id missing (refresh page)' : 'Delete model'}
+                                    >
+                                        <CIcon icon={cilTrash} style={{ width: 20, height: 20 }} />
+                                        <span className="my-auto">&nbsp;Delete</span>
                                     </button>
                                 </td>
                             </tr>

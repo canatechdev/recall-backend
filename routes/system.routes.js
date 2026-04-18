@@ -17,6 +17,7 @@ router.get('/get_categories/:sub', systemController.getCategories)
 router.post('/create_category', upload.single('image'), reqBody, systemController.createCategory)
 router.put('/update_category/:id', upload.single('image'), reqBody, systemController.updateCategory)
 router.patch('/toggle_category/:id', reqBody, systemController.toggleCategory)
+router.delete('/delete_category/:id', systemController.deleteCategory)
 
 router.get('/get_brands', systemController.getBrands)
 router.get('/get_brands/:cat_slug', systemController.getBrands)
@@ -33,6 +34,7 @@ router.get('/get_roles', systemController.getRoles)
 router.get('/series/:brand_slug', systemController.getModelSeries)
 router.post('/series', reqBody, systemController.createSeries)
 router.put('/series/:id', reqBody, systemController.updateSeries)
+router.delete('/series/:id', systemController.deleteSeries)
 
 // get_model_series/:brand_slug
 // /create_series',
@@ -40,6 +42,7 @@ router.put('/series/:id', reqBody, systemController.updateSeries)
 router.get('/get_models/:cat_slug/:brand_slug/:series_slug', systemController.getModels)
 router.post('/models', upload.single('image'), reqBody, systemController.createModel)
 router.put('/models/:id', upload.single('image'), reqBody, systemController.updateModel)
+router.delete('/models/:id', systemController.deleteModel)
 
 
 // BANNERS

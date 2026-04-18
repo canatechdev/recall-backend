@@ -1,6 +1,23 @@
 const pool = require("../config/database");
 const slugify = require('slugify')
 const deleteFile = require("../config/delete.config");
+
+const deleteImageIfUnreferenced = async (client, imageId) => {
+    if (!imageId) return null;
+    const deleted = await client.query(
+        `DELETE FROM images img
+                 WHERE img.id=$1
+                     AND NOT EXISTS (SELECT 1 FROM product_images pi WHERE pi.image_id = img.id)
+                     AND NOT EXISTS (SELECT 1 FROM brand_images bi WHERE bi.image_id = img.id)
+                     AND NOT EXISTS (SELECT 1 FROM service_images si WHERE si.image_id = img.id)
+                     AND NOT EXISTS (SELECT 1 FROM category_images ci WHERE ci.image_id = img.id)
+                     AND NOT EXISTS (SELECT 1 FROM model_images mi WHERE mi.image_id = img.id)
+                 RETURNING img.url`,
+        [imageId]
+    );
+    return deleted.rows?.[0]?.url || null;
+}
+
 exports.getServices = async ({ all } = {}) => {
     const includeAll = String(all).toLowerCase() === 'true' || all === true || all === 1 || all === '1';
     const whereClause = includeAll ? '' : 'WHERE s.is_active=True';
@@ -35,7 +52,7 @@ exports.createService = async (data) => {
         await client.query("COMMIT");
         return servc.rows;
     } catch (error) {
-        await deleteFile(image);
+        try { await deleteFile(image); } catch (_) { }
         await client.query("ROLLBACK");
 
         throw {
@@ -47,7 +64,8 @@ exports.createService = async (data) => {
     }
 }
 exports.deleteService = async (id) => {
-    const data = await pool.query(`UPDATE services SET is_active=False WHERE id=$1 RETURNING id, name`, [id]);
+    const data = await pool.query(`delete from services WHERE id=$1 RETURNING id, name`, [id]);
+    // const data = await pool.query(`UPDATE services SET is_active=False WHERE id=$1 RETURNING id, name`, [id]);
     return data.rows;
 }
 
@@ -78,15 +96,23 @@ exports.updateService = async (id, data) => {
         }
 
         if (image) {
+            let oldFileToDelete = null;
             const imgResult = await client.query(`SELECT image_id FROM service_images WHERE service_id=$1`, [id]);
             const oldImageId = imgResult.rows[0].image_id;
-            const oldImageResult = await client.query(`SELECT url FROM images WHERE id=$1`, [oldImageId]);
-            const oldImageUrl = oldImageResult.rows[0].url;
 
             const img = await client.query(`INSERT INTO images(url, alt_text, uploaded_by) VALUES ($1, $2, $3) RETURNING id`, [image, name + " Image", null]);
             await client.query(`UPDATE service_images SET image_id=$1 WHERE service_id=$2`, [img.rows[0].id, id]);
-            await deleteFile(oldImageUrl);
-            await client.query(`DELETE FROM images WHERE id=$1`, [oldImageId]);
+            oldFileToDelete = await deleteImageIfUnreferenced(client, oldImageId);
+            await client.query("COMMIT");
+            if (oldFileToDelete) {
+                try { await deleteFile(oldFileToDelete); } catch (_) { }
+            }
+
+            const updatedService = await pool.query(`SELECT s.id, s.name, img.url from services s
+                JOIN service_images si ON s.id=si.service_id
+                JOIN images img ON si.image_id=img.id
+                where s.id=$1`, [id]);
+            return updatedService.rows[0];
         }
 
         await client.query("COMMIT");
@@ -96,7 +122,9 @@ exports.updateService = async (id, data) => {
             where s.id=$1`, [id]);
         return updatedService.rows[0];
     } catch (error) {
-        if (image) await deleteFile(image);
+        if (image) {
+            try { await deleteFile(image); } catch (_) { }
+        }
         await client.query("ROLLBACK");
         throw {
             status: error.status || 500,
@@ -172,7 +200,7 @@ exports.createCategory = async (data) => {
         await client.query("COMMIT");
         return category.rows;
     } catch (error) {
-        await deleteFile(image);
+        try { await deleteFile(image); } catch (_) { }
         await client.query("ROLLBACK");
 
         throw {
@@ -210,15 +238,25 @@ exports.updateCategory = async (id, data) => {
         }
 
         if (image) {
+            let oldFileToDelete = null;
             const imgResult = await client.query(`SELECT image_id FROM category_images WHERE category_id=$1`, [id]);
             const oldImageId = imgResult.rows[0].image_id;
-            const oldImageResult = await client.query(`SELECT url FROM images WHERE id=$1`, [oldImageId]);
-            const oldImageUrl = oldImageResult.rows[0].url;
 
             const img = await client.query(`INSERT INTO images(url, alt_text, uploaded_by) VALUES ($1, $2, $3) RETURNING id`, [image, name + " Image", null]);
             await client.query(`UPDATE category_images SET image_id=$1 WHERE category_id=$2`, [img.rows[0].id, id]);
-            await deleteFile(oldImageUrl);
-            await client.query(`DELETE FROM images WHERE id=$1`, [oldImageId]);
+            oldFileToDelete = await deleteImageIfUnreferenced(client, oldImageId);
+
+            await client.query("COMMIT");
+            if (oldFileToDelete) {
+                try { await deleteFile(oldFileToDelete); } catch (_) { }
+            }
+
+            const updatedCategory = await pool.query(`SELECT c1.id, c1.name, c1.slug, c2.name Parent, '/system/get_brands/'|| c1.slug route, img.url 
+                FROM categories c1 LEFT JOIN categories c2 ON c1.parent_id=c2.id
+                JOIN category_images ci ON c1.id=ci.category_id
+                JOIN images img ON ci.image_id=img.id
+                WHERE c1.id=$1`, [id]);
+            return updatedCategory.rows[0];
         }
 
         await client.query("COMMIT");
@@ -229,7 +267,9 @@ exports.updateCategory = async (id, data) => {
             WHERE c1.id=$1`, [id]);
         return updatedCategory.rows[0];
     } catch (error) {
-        if (image) await deleteFile(image);
+        if (image) {
+            try { await deleteFile(image); } catch (_) { }
+        }
         await client.query("ROLLBACK");
         throw {
             status: error.status || 500,
@@ -361,7 +401,9 @@ exports.createBrand = async (data) => {
     } catch (error) {
         await client.query("ROLLBACK");
 
-        if (imageInserted) await deleteFile(image);
+        if (imageInserted) {
+            try { await deleteFile(image); } catch (_) { }
+        }
 
         throw {
             status: error.status || 500,
@@ -372,7 +414,25 @@ exports.createBrand = async (data) => {
     }
 };
 exports.deleteBrand = async (id) => {
-    const data = await pool.query(`UPDATE brands SET status=2 WHERE id=$1 RETURNING id, name`, [id]);
+    const client = await pool.connect();
+    let data;
+    try {
+        await client.query('BEGIN');
+        const models = await client.query(`delete from models where brand_id=$1 returning id`, [id]);
+        const series = await client.query(`delete from model_series where brand_id=$1 returning id`, [id]);
+        // console.log(models.rows)
+        // for (let i of models.rows) {
+        // console.log(i,'atya')
+        // await client.query(`delete from sell_model_configs where model_id =$1`, [i.id]);
+        // }
+        data = await client.query(`DELETE FROM brands WHERE id=$1 RETURNING id, name`, [id]);
+        // const data = await pool.query(`UPDATE brands SET status=2 WHERE id=$1 RETURNING id, name`, [id]);
+        await client.query('COMMIT');
+
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw { status: 409, message: "schema config halted delete brands" }
+    }
     return data.rows;
 }
 
@@ -398,15 +458,28 @@ exports.updateBrand = async (id, data) => {
         }
 
         if (image) {
+            let oldFileToDelete = null;
             const imgResult = await client.query(`SELECT image_id FROM brand_images WHERE brand_id=$1`, [id]);
             const oldImageId = imgResult.rows[0].image_id;
-            const oldImageResult = await client.query(`SELECT url FROM images WHERE id=$1`, [oldImageId]);
-            const oldImageUrl = oldImageResult.rows[0].url;
 
             const img = await client.query(`INSERT INTO images(url, alt_text, uploaded_by) VALUES ($1, $2, $3) RETURNING id`, [image, "Brand Image", null]);
             await client.query(`UPDATE brand_images SET image_id=$1 WHERE brand_id=$2`, [img.rows[0].id, id]);
-            await deleteFile(oldImageUrl);
-            await client.query(`DELETE FROM images WHERE id=$1`, [oldImageId]);
+            oldFileToDelete = await deleteImageIfUnreferenced(client, oldImageId);
+
+            await client.query("COMMIT");
+            if (oldFileToDelete) {
+                try { await deleteFile(oldFileToDelete); } catch (_) { }
+            }
+
+            const updatedBrand = await pool.query(`select b.id, b.name, b.slug, img.url, count(DISTINCT ms.id) series_count
+                from brands b
+                join brand_categories bc on b.id = bc.brand_id
+                join brand_images bi on b.id=bi.brand_id
+                join images img on bi.image_id=img.id
+                left join model_series ms on b.id=ms.brand_id and ms.status=1
+                WHERE b.id=$1
+                group by b.id, img.url`, [id]);
+            return updatedBrand.rows[0];
         }
 
         await client.query("COMMIT");
@@ -420,7 +493,9 @@ exports.updateBrand = async (id, data) => {
             group by b.id, img.url`, [id]);
         return updatedBrand.rows[0];
     } catch (error) {
-        if (image) await deleteFile(image);
+        if (image) {
+            try { await deleteFile(image); } catch (_) { }
+        }
         await client.query("ROLLBACK");
         throw {
             status: error.status || 500,
@@ -578,7 +653,9 @@ exports.createModel = async ({ name, cat_slug, brand_slug, series_slug, image })
         return result.rows;
     } catch (error) {
         await client.query("ROLLBACK");
-        if (imageInserted) await deleteFile(image);
+        if (imageInserted) {
+            try { await deleteFile(image); } catch (_) { }
+        }
         throw { status: error.status || 500, message: error.message || "Failed to create Model" };
     }
     finally {
@@ -620,18 +697,13 @@ exports.updateModel = async (id, { name, image }) => {
         }
 
         if (image) {
+            let oldFileToDelete = null;
             const imgResult = await client.query(
                 "SELECT image_id FROM model_images WHERE model_id=$1",
                 [id]
             );
             if (imgResult.rowCount === 0) throw { status: 404, message: "Model image mapping not found" };
             const oldImageId = imgResult.rows[0].image_id;
-
-            const oldImageResult = await client.query(
-                "SELECT url FROM images WHERE id=$1",
-                [oldImageId]
-            );
-            const oldImageUrl = oldImageResult.rows[0]?.url;
 
             const newImg = await client.query(
                 "INSERT INTO images(url, alt_text, uploaded_by) VALUES ($1, $2, $3) RETURNING id",
@@ -644,8 +716,21 @@ exports.updateModel = async (id, { name, image }) => {
                 [newImg.rows[0].id, id]
             );
 
-            if (oldImageUrl) await deleteFile(oldImageUrl);
-            await client.query("DELETE FROM images WHERE id=$1", [oldImageId]);
+            oldFileToDelete = await deleteImageIfUnreferenced(client, oldImageId);
+            await client.query("COMMIT");
+            if (oldFileToDelete) {
+                try { await deleteFile(oldFileToDelete); } catch (_) { }
+            }
+
+            const updated = await pool.query(
+                `SELECT m.id, m.name, m.slug, img.url
+                 FROM models m
+                 JOIN model_images mi ON m.id=mi.model_id
+                 JOIN images img ON mi.image_id=img.id
+                 WHERE m.id=$1`,
+                [id]
+            );
+            return updated.rows[0];
         }
 
         await client.query("COMMIT");
@@ -661,7 +746,9 @@ exports.updateModel = async (id, { name, image }) => {
         return updated.rows[0];
     } catch (error) {
         await client.query("ROLLBACK");
-        if (imageInserted) await deleteFile(image);
+        if (imageInserted) {
+            try { await deleteFile(image); } catch (_) { }
+        }
         throw {
             status: error.status || 500,
             message: error.message || "Failed to update Model"
@@ -669,4 +756,172 @@ exports.updateModel = async (id, { name, image }) => {
     } finally {
         client.release();
     }
+}
+
+exports.deleteCategory = async (id) => {
+    if (!id) throw { status: 400, message: "ID is required" };
+
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+        const isChild = await client.query(`select 1 from categories where parent_id =$1`, [id]);
+        if (isChild.rowCount !== 0) throw { status: 409, message: "cannot delete parent category having childs" }
+        const cat = await client.query(
+            'SELECT id, name, is_active FROM categories WHERE id=$1',
+            [id]
+        );
+        if (cat.rowCount === 0) throw { status: 404, message: 'Category not found' };
+
+
+        // If referenced by models/product/service mappings, do a safe deactivate instead of hard delete.
+        // const blockers = await client.query(
+        //     `SELECT
+        //         EXISTS (SELECT 1 FROM models WHERE category_id=$1 LIMIT 1) AS has_models,
+        //         EXISTS (SELECT 1 FROM product_categories WHERE category_id=$1 LIMIT 1) AS has_product_categories,
+        //         EXISTS (SELECT 1 FROM service_categories WHERE category_id=$1 LIMIT 1) AS has_service_categories`,
+        //     [id]
+        // );
+        // const b = blockers.rows[0];
+        // const hasBlockers = Boolean(b?.has_models) || Boolean(b?.has_product_categories) || Boolean(b?.has_service_categories);
+        // if (hasBlockers) {
+        //     const deactivated = await client.query(
+        //         'UPDATE categories SET is_active=false WHERE id=$1 RETURNING id, name, is_active',
+        //         [id]
+        //     );
+        //     await client.query('COMMIT');
+        //     return {
+        //         mode: 'deactivated',
+        //         reason: 'Category is referenced by other records',
+        //         data: deactivated.rows[0]
+        //     };
+        // }
+
+        // capture related image ids before deleting category; category_images rows will-delete
+        const imgs = await client.query(
+            `SELECT img.id AS image_id
+             FROM category_images ci
+             JOIN images img ON ci.image_id=img.id
+             WHERE ci.category_id=$1`,
+            [id]
+        );
+        const imageIds = imgs.rows.map((r) => r.image_id).filter(Boolean);
+        const ids = await client.query('select id from brands b join brand_categories bc on b.id=bc.brand_id where bc.category_id=$1', [id])
+        for (let i of ids.rows) {
+            await client.query('delete from model_series where brand_id =$1', [i.id]);
+            await client.query('delete from models where brand_id =$1', [i.id]);
+            await client.query('delete from brands where id =$1', [i.id]);
+        }
+        const deleted = await client.query('DELETE FROM categories WHERE id=$1 RETURNING id, name', [id]);
+
+        // Delete images only if they are not referenced anywhere else.
+        // (Even though in our app they are usually unique per entity, this keeps it safe.)
+        let deletedImageUrls = [];
+        if (imageIds.length) {
+            const deletedImages = await client.query(
+                `DELETE FROM images img
+                 WHERE img.id = ANY($1::bigint[])
+                   AND NOT EXISTS (SELECT 1 FROM product_images pi WHERE pi.image_id = img.id)
+                   AND NOT EXISTS (SELECT 1 FROM brand_images bi WHERE bi.image_id = img.id)
+                   AND NOT EXISTS (SELECT 1 FROM service_images si WHERE si.image_id = img.id)
+                   AND NOT EXISTS (SELECT 1 FROM category_images ci WHERE ci.image_id = img.id)
+                   AND NOT EXISTS (SELECT 1 FROM model_images mi WHERE mi.image_id = img.id)
+                 RETURNING img.url`,
+                [imageIds]
+            );
+            deletedImageUrls = deletedImages.rows.map((r) => r.url).filter(Boolean);
+        }
+
+        await client.query('COMMIT');
+
+        // delete physical files after commit (only for images actually deleted)
+        for (const url of deletedImageUrls) {
+            try { await deleteFile(url); } catch (_) { }
+        }
+
+        return { mode: 'deleted', data: deleted.rows[0] };
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw {
+            status: error.status || 500,
+            message: error.message || 'Failed to delete category'
+        };
+    } finally {
+        client.release();
+    }
+}
+
+exports.deleteModel = async (id) => {
+    if (!id) throw { status: 400, message: 'ID is required' };
+
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const model = await client.query(
+            'SELECT id, name FROM models WHERE id=$1 AND status<>2',
+            [id]
+        );
+        if (model.rowCount === 0) throw { status: 404, message: 'Model not found' };
+
+        // capture related image ids before deleting model; model_images rows will-delete
+        const imgs = await client.query(
+            `SELECT img.id AS image_id
+             FROM model_images mi
+             JOIN images img ON mi.image_id=img.id
+             WHERE mi.model_id=$1`,
+            [id]
+        );
+        const imageIds = imgs.rows.map((r) => r.image_id).filter(Boolean);
+
+        const deleted = await client.query('DELETE FROM models WHERE id=$1 RETURNING id, name', [id]);
+
+        let deletedImageUrls = [];
+        if (imageIds.length) {
+            const deletedImages = await client.query(
+                `DELETE FROM images img
+                 WHERE img.id = ANY($1::bigint[])
+                   AND NOT EXISTS (SELECT 1 FROM product_images pi WHERE pi.image_id = img.id)
+                   AND NOT EXISTS (SELECT 1 FROM brand_images bi WHERE bi.image_id = img.id)
+                   AND NOT EXISTS (SELECT 1 FROM service_images si WHERE si.image_id = img.id)
+                   AND NOT EXISTS (SELECT 1 FROM category_images ci WHERE ci.image_id = img.id)
+                   AND NOT EXISTS (SELECT 1 FROM model_images mi WHERE mi.image_id = img.id)
+                 RETURNING img.url`,
+                [imageIds]
+            );
+            deletedImageUrls = deletedImages.rows.map((r) => r.url).filter(Boolean);
+        }
+
+        await client.query('COMMIT');
+
+        for (const url of deletedImageUrls) {
+            try { await deleteFile(url); } catch (_) { }
+        }
+
+        return { success: true, data: deleted.rows[0] };
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw {
+            status: error.status || 500,
+            message: error.message || 'Failed to delete model'
+        };
+    } finally {
+        client.release();
+    }
+}
+
+exports.deleteSeries = async (id) => {
+    if (!id) throw { status: 400, message: "ID is required" };
+    const result = await pool.query(`delete from model_series where id=$1`, [id])
+    // const result = await pool.query(
+    //     `UPDATE model_series
+    //      SET status=2
+    //      WHERE id=$1 AND status<>2
+    //      RETURNING id, name, slug, status`,
+    //     [id]
+    // );
+
+    if (result.rowCount === 0) throw { status: 404, message: "Series not found" };
+    return result.rows[0];
 }

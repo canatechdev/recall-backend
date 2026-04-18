@@ -1,59 +1,60 @@
-INSERT INTO enum_master(
-	id, master_name, option_name)
-	VALUES 
-	-- USER STATUS
-	(1,'user_status','active'),
-	(2,'user_status','suspended'),
-	(3,'user_status','deleted'),
+BEGIN;
+	INSERT INTO enum_master(
+		id, master_name, option_name)
+		VALUES 
+		-- USER STATUS
+		(1,'user_status','active'),
+		(2,'user_status','suspended'),
+		(3,'user_status','deleted'),
 
-	-- BRAND-MODEL STATUS
-	(1,'brand_model_status','active'),
-	(2,'brand_model_status','inactive'),
-	(3,'brand_model_status','deprecated'),
-	
-	-- PRODUCT STATUS active inactive deleted
-	(1,'product_status','active'),
-	(2,'product_status','inactive'),
-	(3,'product_status','deleted'),
-	
-	-- product_condition 
-	(1,'product_condition','good'),
-	(2,'product_condition','fair'),
-	(3,'product_condition','superb'),
+		-- BRAND-MODEL STATUS
+		(1,'brand_model_status','active'),
+		(2,'brand_model_status','inactive'),
+		(3,'brand_model_status','deprecated'),
+		
+		-- PRODUCT STATUS active inactive deleted
+		(1,'product_status','active'),
+		(2,'product_status','inactive'),
+		(3,'product_status','deleted'),
+		
+		-- product_condition 
+		(1,'product_condition','good'),
+		(2,'product_condition','fair'),
+		(3,'product_condition','superb'),
 
-	-- ORDER STATUS
-	(1,'order_status','pending'),
-	(2,'order_status','paid'),
-	(3,'order_status','shipped'),
-	(4,'order_status','cancelled'),
+		-- ORDER STATUS
+		(1,'order_status','pending'),
+		(2,'order_status','paid'),
+		(3,'order_status','shipped'),
+		(4,'order_status','cancelled'),
 
-	-- SELL-LISTING STATUS pending assigned rejected transferred
-	(1,'listing_status','pending'),
-	(2,'listing_status','assigned'),
-	(3,'listing_status','rejected'),
-	(4,'listing_status','transferred');
-	
-INSERT INTO roles(
-	id,name, description, is_system)
-	VALUES
-	(1,'user', 'Normal users in application',true),
-	(2,'admin', 'Administrator access ',true),
-	(3,'seller', 'Will receive leads',true),
-	(4,'agents', 'who Pickup and drops items',true),
-	(5,'merchant', 'Merchants who buy devices from users',true);
-	
-INSERT INTO users(
+		-- SELL-LISTING STATUS pending assigned rejected transferred
+		(1,'listing_status','pending'),
+		(2,'listing_status','assigned'),
+		(3,'listing_status','rejected'),
+		(4,'listing_status','transferred');
+		
+	INSERT INTO roles(
+		id,name, description, is_system)
+		VALUES
+		(1,'user', 'Normal users in application',true),
+		(2,'admin', 'Administrator access ',true),
+		(3,'seller', 'Will receive leads',true),
+		(4,'agents', 'who Pickup and drops items',true),
+		(5,'merchant', 'Merchants who buy devices from users',true);
+		
+	INSERT INTO users(
 
-	email, phone, password)
-	VALUES ('admin@gmail.com', '7498605559', '$2b$10$zsRVARoZofEJEcW42Zmks.XRhk1magppYaIYnWfHW.SeSwgBXRgtu');
-	
-INSERT INTO user_profile(
-	user_id,first_name,last_name
-) VALUES(1,'Sarthak','Misal');
+		email, phone, password)
+		VALUES ('admin@gmail.com', '7498605559', '$2b$10$zsRVARoZofEJEcW42Zmks.XRhk1magppYaIYnWfHW.SeSwgBXRgtu');
+		
+	INSERT INTO user_profile(
+		user_id,first_name,last_name
+	) VALUES(1,'Sarthak','Misal');
 
-INSERT INTO user_roles (user_id, role_id)
-      VALUES (1, 2);
-
+	INSERT INTO user_roles (user_id, role_id)
+		VALUES (1, 2);
+COMMIT;
 -- AUTH READY
 -- INSERT INTO categories(
 -- 	name, parent_id, slug)

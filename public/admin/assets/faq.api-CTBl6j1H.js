@@ -1,0 +1,1 @@
+import{q as t}from"./index-sImIj1d9.js";const o=()=>t.get("/api/faqs"),q=a=>t.post("/api/faqs",a),c=(a,s)=>t.put(`/api/faqs/${a}`,s),e=(a,s)=>t.patch(`api/faqs/${a}/status`,{status:s});export{q as c,o as g,e as t,c as u};

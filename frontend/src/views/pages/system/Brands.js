@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { get_cat_brands, create_brand, get_categories, toggle_brand, update_brand } from "src/api/system_service"
+import { get_cat_brands, create_brand, delete_brand, get_categories, toggle_brand, update_brand } from "src/api/system_service"
 import CIcon from '@coreui/icons-react'
 import { cilNoteAdd, cilPlus, cilX } from '@coreui/icons'
 import ThemedTablePage from 'src/components/ThemedTablePage'
@@ -130,6 +130,18 @@ const Brands = () => {
             }
         }
     }
+
+    const deleteBrand = async (id) => {
+        if (!id) return
+        if (!confirm('Delete this brand?')) return
+        try {
+            await delete_brand(id)
+            showToast('success', 'Brand deleted')
+            fetchBrands(category)
+        } catch (err) {
+            showToast('danger', err.response?.data?.message || 'Failed to delete brand.')
+        }
+    }
     const setBrandsByCategory = (catSlug) => {
         fetchBrands(catSlug);
         setCategory(catSlug)
@@ -190,6 +202,9 @@ const Brands = () => {
                         className={`btn btn-sm btn-outline-${b.status === true ? 'danger' : 'info'}`}
                     >
                         {b.status === true ? 'Suspend' : 'Enable'}
+                    </button>
+                    <button onClick={() => deleteBrand(b.id)} className="btn btn-sm btn-outline-danger">
+                        Delete
                     </button>
                 </div>
             ),

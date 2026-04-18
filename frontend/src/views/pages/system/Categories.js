@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { CButton, CFormInput, CFormSelect } from '@coreui/react'
-import { get_categories, toggle_category, create_category, update_category } from '../../../api/system_service'
+import { delete_category, get_categories, toggle_category, create_category, update_category } from '../../../api/system_service'
 import CIcon from '@coreui/icons-react'
 import { cilPlus, cilNoteAdd, cilX } from '@coreui/icons'
 import ThemedTablePage from 'src/components/ThemedTablePage'
@@ -126,6 +126,23 @@ const Categories = () => {
         }
     }
 
+    const deleteCategory = async (id) => {
+        if (!id) return
+        if (!confirm('Delete this category?')) return
+        try {
+            const res = await delete_category(id)
+            const mode = res?.data?.mode
+            if (mode === 'deactivated') {
+                showToast('info', 'Category is in use, so it was deactivated.')
+            } else {
+                showToast('success', 'Category deleted')
+            }
+            fetchCategories()
+        } catch (err) {
+            showToast('danger', err.response?.data?.message || 'Failed to delete category.')
+        }
+    }
+
     const filteredCategories = useMemo(() => {
         const q = query.trim().toLowerCase()
         return categories
@@ -175,6 +192,9 @@ const Categories = () => {
                         className={`btn btn-sm btn-outline-${r.status === true ? 'danger' : 'info'}`}
                     >
                         {r.status === true ? 'Suspend' : 'Enable'}
+                    </button>
+                    <button onClick={() => deleteCategory(r.id)} className="btn btn-sm btn-outline-danger">
+                        Delete
                     </button>
                 </div>
             ),

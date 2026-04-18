@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
     // /admin/categories/ doesn't try to load /admin/categories/assets/*.
     base: isProd ? '/admin/' : '/',
     build: {
-      outDir: '../public/admin/' 
+      outDir: '../public/admin/'
     },
     css: {
       postcss: {

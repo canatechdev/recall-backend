@@ -31,6 +31,10 @@ export const update_category = (id, data) => {
     return api.put('api/system/update_category/' + id, data)
 }
 
+export const delete_category = (id) => {
+    return api.delete('api/system/delete_category/' + id)
+}
+
 export const get_brands = () => {
     return api.get('api/system/get_brands/')
 }
@@ -84,6 +88,10 @@ export const update_model = (id, data) => {
     return api.put('api/system/models/' + id, data)
 }
 
+export const delete_model = (id) => {
+    return api.delete('api/system/models/' + id)
+}
+
 
 
 export const get_users = () => {
@@ -120,6 +128,10 @@ export const create_series = (data) => {
 
 export const update_series = (id, data) => {
     return api.put('api/system/series/' + id, data)
+}
+
+export const delete_series = (id) => {
+    return api.delete('api/system/series/' + id)
 }
 
 export const save_product = (data) => {

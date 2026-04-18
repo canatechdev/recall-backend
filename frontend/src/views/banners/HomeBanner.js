@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { createBanner, getBanners, toggleBannerStatus, updateBanner } from '../../../api/banner.api'
+import { createBanner, deleteBanner, getBanners, toggleBannerStatus, updateBanner } from '../../../api/banner.api'
 import Swal from 'sweetalert2'
 import ThemedTablePage from 'src/components/ThemedTablePage'
 
@@ -161,6 +161,31 @@ const HomeBanner = () => {
     }
   }
 
+  const handleDelete = async (banner) => {
+    try {
+      if (!banner?.id) return
+
+      const res = await Swal.fire({
+        title: 'Delete Banner?',
+        text: 'This will permanently delete this banner.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Delete',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#d33',
+      })
+
+      if (!res.isConfirmed) return
+
+      await deleteBanner(banner.id)
+      await loadBanners()
+      Swal.fire({ icon: 'success', title: 'Deleted', timer: 1000, showConfirmButton: false })
+    } catch (err) {
+      console.error(err)
+      Swal.fire('Error', err.response?.data?.message || 'Failed to delete banner', 'error')
+    }
+  }
+
   const filteredBanners = useMemo(() => {
     const q = query.trim().toLowerCase()
     return banners
@@ -224,6 +249,9 @@ const HomeBanner = () => {
             onClick={() => handleToggle(b)}
           >
             {b.is_active ? 'Suspend' : 'Enable'}
+          </button>
+          <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(b)}>
+            Delete
           </button>
         </div>
       ),
@@ -355,10 +383,10 @@ const HomeBanner = () => {
           onExport: null,
           primary: !isBanner
             ? {
-                label: 'Add Banner',
-                color: 'success',
-                onClick: toggleBanner,
-              }
+              label: 'Add Banner',
+              color: 'success',
+              onClick: toggleBanner,
+            }
             : null,
         }}
         topContent={topContent}
@@ -375,10 +403,10 @@ const HomeBanner = () => {
         pagination={
           totalPages > 1
             ? {
-                page: currentPage,
-                totalPages,
-                onChange: (p) => setCurrentPage(p),
-              }
+              page: currentPage,
+              totalPages,
+              onChange: (p) => setCurrentPage(p),
+            }
             : null
         }
       />

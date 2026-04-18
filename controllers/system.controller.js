@@ -125,6 +125,13 @@ exports.updateSeries = async (req, res) => {
     res.status(200).json(data);
 }
 
+exports.deleteSeries = async (req, res) => {
+    const { id } = req.params;
+    if (!id) throw { status: 400, message: "ID is required" }
+    const data = await systemService.deleteSeries(id);
+    res.status(200).json(data);
+}
+
 exports.getModels = async (req, res) => {
     const data = await systemService.getModels(req.params);
     res.status(200).json(data);
@@ -146,3 +153,25 @@ exports.updateService = async (req, res) => {
     const data = await systemService.updateService(id, req.body);
     res.status(200).json(data);
 };
+
+exports.deleteCategory = async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (!id) return res.status(400).json({ message: "ID is required" });
+        const data = await systemService.deleteCategory(id);
+        res.status(200).json(data);
+    } catch (error) {
+        res.status(error.status || 500).json({ message: error.message || "Failed to delete category" });
+    }
+}
+
+exports.deleteModel = async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (!id) return res.status(400).json({ message: "ID is required" });
+        const data = await systemService.deleteModel(id);
+        res.status(200).json(data);
+    } catch (error) {
+        res.status(error.status || 500).json({ message: error.message || "Failed to delete model" });
+    }
+}

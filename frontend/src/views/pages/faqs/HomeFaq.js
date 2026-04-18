@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { createFaq, getFaqs, toggleFaqStatus, updateFaq } from '../../../api/faq.api'
+import { createFaq, deleteFaq, getFaqs, toggleFaqStatus, updateFaq } from '../../../api/faq.api'
 import Swal from 'sweetalert2'
 import ThemedTablePage from 'src/components/ThemedTablePage'
 
@@ -135,6 +135,31 @@ const HomeFaqs = () => {
     }
   }
 
+  const handleDelete = async (faq) => {
+    try {
+      if (!faq?.id) return
+
+      const res = await Swal.fire({
+        title: 'Delete FAQ?',
+        text: 'This will permanently delete this FAQ.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Delete',
+        cancelButtonText: 'Cancel',
+        confirmButtonColor: '#d33',
+      })
+
+      if (!res.isConfirmed) return
+
+      await deleteFaq(faq.id)
+      await loadFaqs()
+      Swal.fire({ icon: 'success', title: 'Deleted', timer: 1000, showConfirmButton: false })
+    } catch (err) {
+      console.error(err)
+      Swal.fire('Error', err.response?.data?.message || 'Failed to delete FAQ', 'error')
+    }
+  }
+
   const filteredFaqs = useMemo(() => {
     const q = query.trim().toLowerCase()
     return faqs
@@ -181,6 +206,9 @@ const HomeFaqs = () => {
             onClick={() => handleToggle(f)}
           >
             {Boolean(f.status) ? 'Suspend' : 'Enable'}
+          </button>
+          <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(f)}>
+            Delete
           </button>
         </div>
       ),
@@ -241,10 +269,10 @@ const HomeFaqs = () => {
           onExport: null,
           primary: !isFaq
             ? {
-                label: 'Add FAQ',
-                color: 'success',
-                onClick: toggleFaq,
-              }
+              label: 'Add FAQ',
+              color: 'success',
+              onClick: toggleFaq,
+            }
             : null,
         }}
         topContent={

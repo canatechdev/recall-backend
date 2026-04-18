@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getBanners, toggleBannerStatus } from '../../../api/banner.api'
+import { deleteBanner, getBanners, toggleBannerStatus } from '../../../api/banner.api'
 import Swal from 'sweetalert2'
 import { useNavigate } from 'react-router-dom'
 import ThemedTablePage from 'src/components/ThemedTablePage'
@@ -60,6 +60,29 @@ const HomeBanner = () => {
     await handleToggle(banner)
   }
 
+  const handleDelete = async (banner) => {
+    const result = await Swal.fire({
+      title: 'Delete Banner?'
+      , text: 'This will permanently delete the banner.'
+      , icon: 'warning'
+      , showCancelButton: true
+      , confirmButtonColor: '#d33'
+      , cancelButtonColor: '#6c757d'
+      , confirmButtonText: 'Yes, delete'
+    })
+
+    if (!result.isConfirmed) return
+
+    try {
+      await deleteBanner(banner.id)
+      await loadBanners()
+      Swal.fire('Deleted!', 'Banner deleted successfully.', 'success')
+    } catch (err) {
+      console.error(err)
+      Swal.fire('Error', err?.response?.data?.message || 'Failed to delete banner', 'error')
+    }
+  }
+
   const filteredBanners = query.trim()
     ? banners.filter((b) => String(b?.title || '').toLowerCase().includes(query.trim().toLowerCase()))
     : banners
@@ -112,6 +135,10 @@ const HomeBanner = () => {
             title={b.is_active ? 'Suspend (soft delete)' : 'Activate'}
           >
             {b.is_active ? 'Suspend' : 'Activate'}
+          </button>
+
+          <button className="btn btn-sm btn-danger ms-2" onClick={() => handleDelete(b)}>
+            Delete
           </button>
         </>
       ),

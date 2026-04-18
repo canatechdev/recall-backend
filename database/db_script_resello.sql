@@ -94,7 +94,7 @@ BEGIN;
 	CREATE TABLE models(
 		id BIGSERIAL PRIMARY KEY,
 		brand_id BIGINT REFERENCES brands(id) ON DELETE RESTRICT,
-		series_id BIGINT REFERENCES model_series(id) ON DELETE SET NULL,
+		series_id BIGINT REFERENCES model_series(id) ON DELETE CASCADE,
 		category_id BIGINT REFERENCES categories(id) ON DELETE RESTRICT,
 		name VARCHAR(50) NOT NULL,
 		slug VARCHAR(100) NOT NULL,
