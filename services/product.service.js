@@ -78,7 +78,7 @@ exports.getProducts = async ({ id }) => {
         LEFT JOIN enum_master em ON pm.status=em.id AND em.master_name='product_status'
         ${whereClause}
         ORDER BY pm.created_at DESC
-        LIMIT 50
+        
         `, values);
 
     for (const product of result.rows) {
@@ -87,7 +87,7 @@ exports.getProducts = async ({ id }) => {
             FROM product_images pi
             JOIN images i ON pi.image_id=i.id
             WHERE pi.product_id=$1
-            ORDER BY pi.sort_index LIMIT 10`,
+            ORDER BY pi.sort_index `,
             [product.id]
         );
         product.images = imgRes.rows;
@@ -421,7 +421,7 @@ exports.getProductsByBrand = async ({ brandSlug }) => {
         JOIN enum_master em ON pm.condition=em.id AND em.master_name='product_condition'
         ${whereClause}
         ORDER BY pm.created_at DESC
-        LIMIT 10
+        
     `, values);
 
     for (const product of result.rows) {
@@ -457,7 +457,7 @@ exports.getProductsByBrand = async ({ brandSlug }) => {
 //             JOIN model_images mi ON m.id=mi.model_id
 //             JOIN images i ON mi.image_id=i.id
 //             ${whereClause}
-//             LIMIT 10
+//             
 //         `, values);
 
 //     return result.rows;
@@ -478,7 +478,6 @@ exports.getSeriesByBrand = async ({ brandSlug }) => {
             FROM model_series ms
             JOIN brands b ON ms.brand_id=b.id            
             ${whereClause}
-            LIMIT 10
         `, values);
 
     return result.rows;
@@ -506,7 +505,6 @@ exports.getModelsByBrandSeries = async ({ brandSlug, seriesSlug }) => {
             JOIN model_images mi ON m.id=mi.model_id
             JOIN images i ON mi.image_id=i.id           
             ${whereClause}
-            LIMIT 10
         `, values);
 
     return result.rows;
@@ -533,7 +531,7 @@ exports.getModelByBrandModel = async ({ brandSlug, modelSlug }) => {
             JOIN model_images mi ON m.id=mi.model_id
             JOIN images i ON mi.image_id=i.id       
             ${whereClause}
-            LIMIT 10
+           
         `, values);
     for (let model of result.rows) {
         model.variants = await pool.query(`
@@ -563,7 +561,7 @@ exports.getQuestionsByModelSlug = async ({ modelSlug }) => {
             JOIN model_images mi ON m.id=mi.model_id
             JOIN images i ON mi.image_id=i.id       
             ${whereClause}
-            LIMIT 10
+            
         `, values);
     for (let model of result.rows) {
         model.variants = await pool.query(`
@@ -598,7 +596,7 @@ exports.getVariantsByBrandModel = async ({ brandSlug, modelSlug }) => {
             JOIN model_images mi ON m.id=mi.model_id
             JOIN images i ON mi.image_id=i.id       
             where m.slug=$1 AND b.slug=$2
-            LIMIT 10
+           
         `, [modelSlug, brandSlug]);
     if (result.rows.length == 0) throw { status: 400, message: "Invalid Model or brand" }
     for (let model of result.rows) {

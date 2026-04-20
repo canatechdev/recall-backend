@@ -629,7 +629,7 @@ exports.getListings = async ({ status }) => {
         LEFT JOIN user_profile mup ON mu.id=mup.user_id
         ${whereClause}
         ORDER BY sl.created_at DESC
-        LIMIT 100
+        
     `, values);
 
     return result.rows;
