@@ -100,6 +100,7 @@ exports.getQuestions = async () => {
                             WHERE scq.question_id=que.id
                         ) categories
             FROM sell_questions que
+            WHERE que.is_active=true
             ORDER BY que.sort_index, que.id
         `
     );
@@ -235,8 +236,11 @@ exports.updateQuestion = async (id, data) => {
 
 exports.deleteQuestion = async (id) => {
     const result = await pool.query(
-        `UPDATE sell_questions SET is_active=false WHERE id=$1 RETURNING id, text`, [id]
+        `delete from sell_questions  WHERE id=$1 RETURNING id, text`, [id]
     );
+    // const result = await pool.query(
+    //     `UPDATE sell_questions SET is_active=false WHERE id=$1 RETURNING id, text`, [id]
+    // );
     if (result.rowCount === 0) throw { status: 404, message: "Question not found" };
     return result.rows[0];
 };
