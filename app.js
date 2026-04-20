@@ -8,9 +8,13 @@ const fs = require("fs");
 const path = require('path');
 
 const app = express();
-
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "https://recello.thecanatech.com"
+]
 app.use(cors({
-  origin: true,
+  origin: allowedOrigins,
   credentials: true
 }));
 
