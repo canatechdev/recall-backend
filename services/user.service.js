@@ -167,31 +167,25 @@ exports.updateUser = async (id, data) => {
     return { id, email };
 }
 
-// {
-//     "email": "abhi@gmail.com",
-//     "phone": "9325924134",
-//     "password": "abhishek",
-//     "status": "active",
-//     "is_verified": true,
-//     "profile": {
-//         "first_name": "Abhishek",
-//         "last_name": "Kute",
-//         "avatar_url": null
-//     },
-//     "addresses": [
-//         {
-//             "name": "Rupesh",
-//             "phone": "9594212288",
-//             "line1": "House 8",
-//             "line2": "Samruddhi nagar",
-//             "city": "Ahmednagar",
-//             "state": "Maharashtra",
-//             "pincode": "414001",
-//             "country": "India",
-//             "is_default": true
-//         }
-//     ],
-//     "roles": [
-//         "customer"
-//     ]
-// }
+// ── ADDRESS
+exports.createAddress = async ({ user_id, name, phone, line1, line2, city, state, pincode, country, is_default }) => {
+    if (!user_id || !name || !phone || !line1 || !city || !state || !pincode || !country) {
+        throw { status: 400, message: "user_id, name, phone, line1, city, state, pincode and country are required" };
+    }
+    const result = await pool.query(
+        `INSERT INTO addresses (user_id, name, phone, line1, line2, city, state, pincode, country, is_default)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         RETURNING *`,
+        [user_id, name, phone, line1, line2, city, state, pincode, country, is_default]
+    );
+    return result.rows[0];
+};
+
+exports.getAddresses= async (user_id) => {
+    if (!user_id) throw { status: 400, message: "user_id is required" };
+    const result = await pool.query(
+        `SELECT * FROM addresses WHERE user_id=$1`,
+        [user_id]
+    );
+    return result.rows;
+};

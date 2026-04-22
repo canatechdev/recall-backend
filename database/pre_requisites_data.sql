@@ -32,7 +32,14 @@ BEGIN;
 		(1,'listing_status','pending'),
 		(2,'listing_status','assigned'),
 		(3,'listing_status','rejected'),
-		(4,'listing_status','transferred');
+		(4,'listing_status','transferred'),
+
+		-- PICKUP STATUS
+		(1,'pickup_status','scheduled'),
+		(2,'pickup_status','rescheduled'),
+		(3,'pickup_status','completed'),
+		(4,'pickup_status','cancelled'),
+		(5,'pickup_status','failed');
 		
 	INSERT INTO roles(
 		id,name, description, is_system)

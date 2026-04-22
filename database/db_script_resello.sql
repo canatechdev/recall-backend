@@ -265,6 +265,27 @@ BEGIN;
 		option_id BIGINT NOT NULL REFERENCES sell_question_options(id) ON DELETE CASCADE,
 		UNIQUE(listing_id, question_id, option_id)
 	);
+	
+	CREATE TABLE sell_pickups (
+		id BIGSERIAL PRIMARY KEY,
+		listing_id BIGINT NOT NULL REFERENCES sell_listings(id) ON DELETE CASCADE,
+		
+		-- Address (inline or FK to addresses table)
+		address_id BIGINT REFERENCES addresses(id) ON DELETE SET NULL,
+		
+		-- Scheduled slot
+		pickup_date DATE NOT NULL,
+		pickup_slot_start TIME NOT NULL,   -- e.g. 10:00
+		pickup_slot_end TIME NOT NULL,     -- e.g. 12:00
+		
+		-- Lifecycle
+		status INT NOT NULL DEFAULT 1,     -- pickup_status | scheduled rescheduled completed cancelled
+		assigned_agent_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+		
+		notes TEXT,
+		created_at TIMESTAMP DEFAULT NOW(),
+		updated_at TIMESTAMP DEFAULT NOW()
+	);
 
 	CREATE OR REPLACE FUNCTION enum_master_sort_index()
 	RETURNS TRIGGER

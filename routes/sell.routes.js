@@ -47,6 +47,8 @@ router.put('/listings/:id/assign', reqBody, sellController.assignListing);
 router.put('/listings/:id/transfer', sellController.transferListing);
 router.put('/listings/:id/reject', sellController.rejectListing);
 
+
+
 // Merchants
 router.get('/merchants', sellController.getMerchants);
 

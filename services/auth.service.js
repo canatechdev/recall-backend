@@ -233,7 +233,7 @@ exports.loginUser = async (data) => {
         if (!isMatch) {
             throw { status: 401, message: "Invalid credentials" };
         }
-
+        res_user={ id: user.id, email: user.email, name: user.name };
         const accessToken = jwt.sign(
             { userId: user.id, email: user.email },
             process.env.JWT_ACCESS_SECRET,
@@ -255,7 +255,7 @@ exports.loginUser = async (data) => {
         return {
             accessToken,
             refreshToken,
-            user
+            res_user
         }
     } catch (err) {
         console.error(err);

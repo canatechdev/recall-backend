@@ -176,6 +176,7 @@ exports.rejectListing = async (req, res) => {
     res.status(200).json(data);
 };
 
+
 // ── Merchants ─────────────────────────────────────────────
 
 exports.getMerchants = async (req, res) => {

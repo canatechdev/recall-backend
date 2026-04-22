@@ -35,3 +35,14 @@ exports.updateUserStatus = async (req, res) => {
     const data = await userService.updateUserStatus(req.params.id, req.body.status);
     res.status(200).json(data);
 }
+
+// ADDRESS
+exports.createAddress = async (req, res) => {
+    const data = await userService.createAddress(req.body);
+    res.status(201).json(data);
+};
+
+exports.getAddresses = async (req, res) => {
+    const data = await userService.getAddresses(req.params.user_id);
+    res.status(200).json(data);
+};

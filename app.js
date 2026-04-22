@@ -9,10 +9,11 @@ const path = require('path');
 
 const app = express();
 const allowedOrigins = [
+  "http://192.168.1.31:5173",
   "http://localhost:5173",
-  "http://localhost:3000",
   "https://recello.thecanatech.com"
 ]
+
 app.use(cors({
   origin: allowedOrigins,
   credentials: true
@@ -95,6 +96,10 @@ app.use('/api/system', require('./routes/system.routes'));
 app.use('/api/sell', require('./routes/sell.routes'));
 app.use('/api/banners', require('./routes/banner.routes'));
 app.use('/api/faqs', require('./routes/faq.routes'));
+
+// MERCHANT ROUTES
+app.use('/api/merchant', require('./routes/merchant.routes'));
+
 
 // Health check
 app.get('/api/health', (req, res) => {

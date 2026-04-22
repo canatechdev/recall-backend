@@ -563,7 +563,7 @@ exports.createSellListing = async (data) => {
                 );
                 // console.log("deva", ans, opt, optRes.rows);
                 if (optRes.rowCount > 0) {
-                    quoted_price -= (base_price * parseFloat(optRes.rows[0].price_deduction))/100;
+                    quoted_price -= (base_price * parseFloat(optRes.rows[0].price_deduction)) / 100;
                 }
             }
         }
@@ -583,9 +583,9 @@ exports.createSellListing = async (data) => {
         for (const ans of answers) {
             for (const opt of ans.options) {
                 await client.query(
-                    `INSERT INTO sell_listing_answers(listing_id, question_id, option_id)
+                    `INSERT INTO sell_listing_answers(listing_id, question, answer)
                  VALUES ($1, $2, $3)`,
-                    [listing_id, ans.question_id, opt]
+                    [listing_id, ans.question, opt]
                 );
             }
         }
@@ -692,6 +692,8 @@ exports.rejectListing = async (listing_id) => {
     if (result.rowCount === 0) throw { status: 404, message: "Listing not found or already rejected" };
     return result.rows[0];
 };
+
+
 
 // ── Get Merchants ────────────────────────────────────────────
 
