@@ -1,5 +1,9 @@
 const pool = require('../config/database');
 const authService = require('./auth.service');
+const { v7: uuid7 } = require('uuid')
+const { sendEmail } = require("../providers/email.provider");
+
+
 
 exports.loginMerchant = async ({ email, password }) => {
     if (!email || !password) throw { status: 400, message: "Email and Password are required" };
@@ -32,3 +36,112 @@ exports.getLeadsByMerchant = async ({ userId }) => {
         `, [userId]);
     return leads.rows;
 };
+
+
+exports.inviteMerchantAgent = async ({
+    user_id, contact
+}) => {
+
+    if (!user_id || !contact) {
+        throw { status: 400, message: "Contact Details are required" };
+    }
+
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const isMerchant = await client.query(
+            `SELECT * FROM users u 
+            JOIN user_roles ur ON ur.user_id=u.id 
+            JOIN roles r ON ur.role_id=r.id
+            WHERE r.name='merchant' AND u.id = $1`,
+            [user_id]
+        );
+
+        if (isMerchant.rowCount == 0) {
+            throw { status: 403, message: "Forbidden" };
+        }
+        const token = uuid7();
+        const result = await client.query(
+            `INSERT INTO merchant_agent_invites(merchant_id, contact, token)
+            VALUES($1,$2,$3)
+            ON CONFLICT(contact) DO UPDATE SET token=EXCLUDED.token, status=1, created_at = NOW()
+            RETURNING *`,
+            [user_id, contact, token]
+        );
+
+        const link = `${process.env.BASE_URL}/api/verify_agent?token=${token}`;
+        console.log(link, contact)
+
+        await this.sendEmailOTP({ link: link, email: contact });
+        await client.query('COMMIT');
+
+        return result.rows[0];
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw { status: 500, message: error.message || "Internal Server Error" };
+    } finally {
+        client.release();
+    }
+};
+
+exports.verifyMerchantAgent = async ({ token }) => {
+
+    if (!token) {
+        throw { status: 400, message: "Token is required" };
+    }
+
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const result = await client.query(
+            `SELECT * FROM merchant_agent_invites mi
+            JOIN users u ON mi.merchant_id=u.id
+            WHERE mi.token = $1 AND mi.status < 3 AND mi.created_at > NOW() - INTERVAL '48 hours'`,
+            [token]
+        );
+
+        if (result.rowCount == 0) {
+            throw { status: 403, message: "Invalid or Expired Token" };
+        }
+
+        await client.query(
+            `UPDATE merchant_agent_invites SET status=2 WHERE token=$1`,
+            [token]
+        );
+        // await this.sendEmailOTP({ link: link, email: contact });
+        await client.query('COMMIT');
+
+        return {
+            message: "Token is valid. Agent can proceed with registration.", merchant_id: result.rows[0].merchant_id
+        };
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw { status: 500, message: error.message || "Internal Server Error" };
+    } finally {
+        client.release();
+    }
+};
+
+exports.sendEmailOTP = async ({ link, email }) => {
+    await sendEmail(
+        email,
+        "Verification Link from Resello",
+        `Click this link to verify your account: ${link}. It expires in 48 hours.`,
+        `
+  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+    <h2 style="color: #333;">Registration Link</h2>
+    <p>Use the following Link to verify your account. It expires in <b>48 hours</b>.</p>
+    <h1 style="text-align: center; letter-spacing: 4px; color: #1a73e8;">${link}</h1>
+    <p>If you did not request this, please ignore this email.</p>
+    <hr>
+    <p style="font-size: 12px; color: #888;">© 2026 Recello. All rights reserved.</p>
+  </div>
+  `
+    );
+}

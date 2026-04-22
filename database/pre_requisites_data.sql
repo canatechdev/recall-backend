@@ -39,7 +39,12 @@ BEGIN;
 		(2,'pickup_status','rescheduled'),
 		(3,'pickup_status','completed'),
 		(4,'pickup_status','cancelled'),
-		(5,'pickup_status','failed');
+		(5,'pickup_status','failed')
+		
+		-- INVITE STATUS
+		(1,'invite_status','pending'),
+		(2,'invite_status','accepted'),
+		(3,'invite_status','expired');
 		
 	INSERT INTO roles(
 		id,name, description, is_system)

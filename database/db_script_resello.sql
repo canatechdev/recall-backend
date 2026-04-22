@@ -286,6 +286,16 @@ BEGIN;
 		created_at TIMESTAMP DEFAULT NOW(),
 		updated_at TIMESTAMP DEFAULT NOW()
 	);
+	CREATE TABLE merchant_agent_invites (
+		id BIGSERIAL PRIMARY KEY,
+		merchant_id  BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		contact      TEXT NOT NULL UNIQUE,        -- phone or email merchant entered
+		token        TEXT NOT NULL UNIQUE, -- sent via SMS/email
+		agent_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL, -- filled after registration
+		status       INT DEFAULT 1,        -- invite_status | pending accepted expired
+		expires_at   TIMESTAMP NOT NULL DEFAULT NOW() + INTERVAL '48 hours',
+		created_at   TIMESTAMP DEFAULT NOW()
+	);
 
 	CREATE OR REPLACE FUNCTION enum_master_sort_index()
 	RETURNS TRIGGER
