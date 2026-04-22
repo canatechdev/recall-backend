@@ -100,7 +100,6 @@ app.use('/api/faqs', require('./routes/faq.routes'));
 // MERCHANT ROUTES
 app.use('/api/merchant', require('./routes/merchant.routes'));
 
-
 // Health check
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'success', code: 200 });
@@ -127,7 +126,7 @@ app.get('/api/logs_clean', (req, res) => {
 
 // ─────────────────────────────────────────────
 // 6. SPA FALLBACKS — after API routes so they
-//    can never catch an /api/* or /uploads/* URL
+//    can never catch an /api/* OR /uploads/* URL
 // ─────────────────────────────────────────────
 app.use('/admin', (req, res, next) => {
   if (req.path.includes('.')) return next(); // let 404 handle missing assets
