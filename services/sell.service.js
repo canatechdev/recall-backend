@@ -583,9 +583,9 @@ exports.createSellListing = async (data) => {
         for (const ans of answers) {
             for (const opt of ans.options) {
                 await client.query(
-                    `INSERT INTO sell_listing_answers(listing_id, question, answer)
+                    `INSERT INTO sell_listing_answers(listing_id, question_id, option_id)
                  VALUES ($1, $2, $3)`,
-                    [listing_id, ans.question, opt]
+                    [listing_id, ans.question_id, opt]
                 );
             }
         }

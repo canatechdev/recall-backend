@@ -128,7 +128,7 @@ exports.sendEmailOTP = async (data) => {
     <h1 style="text-align: center; letter-spacing: 4px; color: #1a73e8;">${otp}</h1>
     <p>If you did not request this, please ignore this email.</p>
     <hr>
-    <p style="font-size: 12px; color: #888;">© 2026 Your Company. All rights reserved.</p>
+    <p style="font-size: 12px; color: #888;">© 2026 Recello. All rights reserved.</p>
   </div>
   `
     );
