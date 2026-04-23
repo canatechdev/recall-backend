@@ -128,6 +128,80 @@ exports.verifyMerchantAgent = async ({ token }) => {
     }
 };
 
+exports.getProfileDetails = async ({ userId, roles }) => {
+    console.log(userId, roles)
+    if (!userId || !roles || !roles.includes('merchant')) {
+        throw { status: 400, message: "Not Allowed" };
+    }
+
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const result = await client.query(
+            `SELECT u.id, up.first_name, up.last_name, u.email, u.phone, r.name role FROM users u
+            JOIN user_profile up ON u.id=up.user_id
+            JOIN user_roles ur ON u.id=ur.user_id
+            JOIN roles r ON ur.role_id=r.id
+            WHERE u.id = $1 AND r.name='merchant'`,
+            [userId]
+        );
+
+        if (result.rowCount == 0) {
+            throw { status: 403, message: "Invalid or Expired Token" };
+        }
+
+        // await this.sendEmailOTP({ link: link, email: contact });
+        await client.query('COMMIT');
+
+        return result.rows[0];
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw { status: 500, message: error.message || "Internal Server Error" };
+    } finally {
+        client.release();
+    }
+};
+
+exports.updateProfileDetails = async ({ user, first_name }) => {
+    console.log(userId, roles)
+    if (!userId || !roles || !roles.includes('merchant')) {
+        throw { status: 400, message: "Not Allowed" };
+    }
+
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const result = await client.query(
+            `SELECT u.id, up.first_name, up.last_name, u.email, u.phone, r.name role FROM users u
+            JOIN user_profile up ON u.id=up.user_id
+            JOIN user_roles ur ON u.id=ur.user_id
+            JOIN roles r ON ur.role_id=r.id
+            WHERE u.id = $1 AND r.name='merchant'`,
+            [userId]
+        );
+
+        if (result.rowCount == 0) {
+            throw { status: 403, message: "Invalid or Expired Token" };
+        }
+
+        // await this.sendEmailOTP({ link: link, email: contact });
+        await client.query('COMMIT');
+
+        return result.rows[0];
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw { status: 500, message: error.message || "Internal Server Error" };
+    } finally {
+        client.release();
+    }
+};
+
 exports.sendEmailOTP = async ({ link, email }) => {
     await sendEmail(
         email,
