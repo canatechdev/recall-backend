@@ -14,6 +14,7 @@ router.post('/invite_agent', reqBody, authMiddleware, merchantController.inviteM
 router.get('/verify_agent', merchantController.verifyMerchantAgent);
 router.post('/register_agent', reqBody, merchantController.registerMerchantAgent);
 
+
 // router.get('/get_users/:id', merchantController.getUsers);
 // router.put('/update/:id', merchantController.updateUser);
 // router.delete('/delete_user/:id', merchantController.deleteUser);
