@@ -3,7 +3,7 @@ require("dotenv").config();
 const app = require("./app");
 const pool = require("./config/database");
 
-const PORT = process.env.PORT || 5500;
+const PORT = process.env.PORT || 5004;
 
 // Start Server
 const server = app.listen(PORT, "0.0.0.0", () => {
