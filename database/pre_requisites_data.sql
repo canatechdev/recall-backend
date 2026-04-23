@@ -58,7 +58,7 @@ BEGIN;
 	INSERT INTO users(
 
 		email, phone, password)
-		VALUES ('admin@gmail.com', '7498605559', '$2b$10$zsRVARoZofEJEcW42Zmks.XRhk1magppYaIYnWfHW.SeSwgBXRgtu');
+		VALUES ('admin@gmail.com', '7498605559', '$2b$10$GcVY0w77WH8tCJezUmNgS.jFn8mGfq/oA/f1EzRfL9vVkkxHR6uF.');
 		
 	INSERT INTO user_profile(
 		user_id,first_name,last_name

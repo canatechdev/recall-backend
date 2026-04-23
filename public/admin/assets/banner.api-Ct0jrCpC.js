@@ -1,0 +1,1 @@
+import{q as n}from"./index-CgtEiq3I.js";const s=()=>n.get("/api/banners"),r=a=>n.post("/api/banners",a),p=a=>n.delete(`/api/banners/${a}`),o=a=>n.get(`/api/banners/${a}`),c=(a,e)=>n.put(`/api/banners/${a}`,e),i=(a,e)=>n.patch(`/api/banners/${a}/status`,{is_active:e});export{o as a,r as c,p as d,s as g,i as t,c as u};

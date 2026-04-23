@@ -47,12 +47,12 @@ const _nav = [
     to: '/users',
     icon: <CIcon icon={cilList} customClassName="nav-icon" />,
   },
-  {
-    component: CNavItem,
-    name: 'Add User',
-    to: '/users/add',
-    icon: <CIcon icon={cilUserPlus} customClassName="nav-icon" />,
-  },
+  // {
+  //   component: CNavItem,
+  //   name: 'Add User',
+  //   to: '/users/add',
+  //   icon: <CIcon icon={cilUserPlus} customClassName="nav-icon" />,
+  // },
   {
     component: CNavTitle,
     name: 'Lead Management',
@@ -68,24 +68,24 @@ const _nav = [
     component: CNavTitle,
     name: 'Inventory Management',
   },
-  {
-    component: CNavGroup,
-    name: 'Products',
-    to: '/products',
-    icon: <CIcon icon={cilChartPie} customClassName="nav-icon" />,
-    items: [
-      {
-        component: CNavItem,
-        name: 'Manage Products',
-        to: '/products',
-      },
-      // {
-      //   component: CNavItem,
-      //   name: 'Add Product',
-      //   to: '/products/add',
-      // },
-    ]
-  },
+  // {
+  //   component: CNavGroup,
+  //   name: 'Products',
+  //   to: '/products',
+  //   icon: <CIcon icon={cilChartPie} customClassName="nav-icon" />,
+  //   items: [
+  //     {
+  //       component: CNavItem,
+  //       name: 'Manage Products',
+  //       to: '/products',
+  //     },
+  //     // {
+  //     //   component: CNavItem,
+  //     //   name: 'Add Product',
+  //     //   to: '/products/add',
+  //     // },
+  //   ]
+  // },
   {
     component: CNavGroup,
     name: 'Services',
@@ -140,7 +140,7 @@ const _nav = [
   },
   {
     component: CNavGroup,
-    name: 'Sell Flow',
+    name: 'Price Deduction',
     to: '/sell',
     icon: <CIcon icon={cilArrowThickToTop} customClassName="nav-icon" />,
     items: [

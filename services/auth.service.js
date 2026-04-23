@@ -212,9 +212,13 @@ exports.loginUser = async (data) => {
 
     try {
         const userResult = await pool.query(
-            `SELECT id, up.first_name name, email, password, status FROM users u 
+            `SELECT u.id, up.first_name name, u.email, array_agg(r.name) AS roles, u.password, u.status FROM users u 
             JOIN user_profile up ON u.id=up.user_id
-            WHERE email = $1`,
+            JOIN user_roles ur ON u.id=ur.user_id
+            JOIN roles r ON ur.role_id=r.id
+            WHERE u.email = $1
+            GROUP BY u.id, up.first_name,u.email, u.password, u.status
+            `,
             [email],
         );
         // console.log(userResult.rows);
@@ -233,9 +237,9 @@ exports.loginUser = async (data) => {
         if (!isMatch) {
             throw { status: 401, message: "Invalid credentials" };
         }
-        res_user={ id: user.id, email: user.email, name: user.name };
+        res_user={ id: user.id, email: user.email, name: user.name, role: user.role };
         const accessToken = jwt.sign(
-            { userId: user.id, email: user.email },
+            { userId: user.id, email: user.email, roles: user.roles },
             process.env.JWT_ACCESS_SECRET,
             { expiresIn: process.env.JWT_EXPIRES_IN },
         );

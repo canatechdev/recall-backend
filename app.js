@@ -9,8 +9,17 @@ const path = require('path');
 
 const app = express();
 const allowedOrigins = [
-  "http://192.168.1.31:5173",
+  // Local/LAN dev (Vite)
   "http://localhost:5173",
+  "http://localhost:3000",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:3000",
+  "http://192.168.1.31:5173",
+  "http://192.168.1.31:3000",
+  "http://192.168.1.40:5173",
+  "http://192.168.1.40:3000",
+
+  // Production
   "https://recello.thecanatech.com"
 ]
 

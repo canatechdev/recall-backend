@@ -11,6 +11,8 @@ export default defineConfig(({ mode }) => {
     // /admin/categories/ doesn't try to load /admin/categories/assets/*.
     base: isProd ? '/admin/' : '/',
     build: {
+      // Backend serves the admin SPA from /public/admin (mounted at /admin).
+      // Keep the build output aligned with Express static hosting.
       outDir: '../public/admin/'
     },
     css: {

@@ -23,6 +23,11 @@ const App = () => {
   const { isColorModeSet, setColorMode } = useColorModes('coreui-free-react-admin-template-theme')
   const storedTheme = useSelector((state) => state.theme)
 
+  // Keep routing working in both dev and production.
+  // - Dev (vite): BASE_URL is '/' → no basename
+  // - Prod (express mounted at /admin): BASE_URL is '/admin/' → basename '/admin'
+  const routerBase = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
+
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.href.split('?')[1])
     const theme = urlParams.get('theme') && urlParams.get('theme').match(/^[A-Za-z0-9\s]+/)[0]
@@ -38,7 +43,7 @@ const App = () => {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <BrowserRouter basename='/admin'>
+    <BrowserRouter basename={routerBase || undefined}>
       <AuthProvider>
         <Suspense
           fallback={
