@@ -131,7 +131,7 @@ exports.verifyMerchantAgent = async ({ token }) => {
 exports.getProfileDetails = async ({ userId, roles }) => {
     console.log(userId, roles)
     if (!userId || !roles || !roles.includes('merchant')) {
-        throw { status: 400, message: "Not Allowed" };
+        throw { status: 403, message: "Not Allowed" };
     }
 
     const client = await pool.connect();
@@ -165,10 +165,10 @@ exports.getProfileDetails = async ({ userId, roles }) => {
     }
 };
 
-exports.updateProfileDetails = async ({ user, first_name }) => {
-    console.log(userId, roles)
-    if (!userId || !roles || !roles.includes('merchant')) {
-        throw { status: 400, message: "Not Allowed" };
+exports.updateProfileDetails = async ({ user, first_name, last_name, email, phone }) => {
+    // console.log(user, first_name)
+    if (!user || !first_name || !last_name || !email || !user.roles.includes('merchant') || !phone) {
+        throw { status: 400, message: "Insufficient Details" };
     }
 
     const client = await pool.connect();
@@ -182,7 +182,7 @@ exports.updateProfileDetails = async ({ user, first_name }) => {
             JOIN user_roles ur ON u.id=ur.user_id
             JOIN roles r ON ur.role_id=r.id
             WHERE u.id = $1 AND r.name='merchant'`,
-            [userId]
+            [user.userId]
         );
 
         if (result.rowCount == 0) {
