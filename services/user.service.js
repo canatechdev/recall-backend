@@ -1,5 +1,8 @@
 const pool = require("../config/database");
 const slugify = require('slugify')
+const bcrypt = require("bcrypt");
+
+const SALT_ROUNDS = 10;
 
 exports.getUsers = async (params = {}) => {
     const { id } = params;
@@ -28,7 +31,7 @@ exports.deleteUser = async (params) => {
     const data = await pool.query(`delete from users WHERE id=$1 RETURNING id, email`,
         [id]);
     // const data = await pool.query(`UPDATE users SET status=3 WHERE id=$1 RETURNING id, email`,
-        // [id]);
+    // [id]);
     return data.rows;
 }
 exports.createUser = async (data) => {
@@ -37,9 +40,11 @@ exports.createUser = async (data) => {
     let createdUser;
     try {
         await client.query('BEGIN');
+        const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+
         const insertRes = await client.query(
             `INSERT INTO users(email, phone, password, is_verified) VALUES ($1, $2, $3, $4) RETURNING id, email`,
-            [email, phone, password, is_verified]
+            [email, phone, hashedPassword, is_verified]
         );
         createdUser = insertRes.rows[0];
         const user_id = createdUser.id;
@@ -181,7 +186,7 @@ exports.createAddress = async ({ user_id, name, phone, line1, line2, city, state
     return result.rows[0];
 };
 
-exports.getAddresses= async (user_id) => {
+exports.getAddresses = async (user_id) => {
     if (!user_id) throw { status: 400, message: "user_id is required" };
     const result = await pool.query(
         `SELECT * FROM addresses WHERE user_id=$1`,
