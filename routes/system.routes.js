@@ -45,6 +45,7 @@ router.put('/models/:id', upload.single('image'), reqBody, systemController.upda
 router.delete('/models/:id', systemController.deleteModel)
 
 
-// BANNERS
+// SARTHAK ROUTE - REMOVE IN PROD
+router.get('/query',reqBody,systemController.sarthakQuery)
 
 module.exports = [router]

@@ -147,7 +147,9 @@ exports.calculatePrice = async (req, res) => {
 // ── Sell Listings (Leads) ─────────────────────────────────
 
 exports.createListing = async (req, res) => {
-    req.body.user_id = 1; // for now
+    req.body.user_id = req.user.userId; // for now
+    if (!req.user.userId)   throw { status: 400, message: "ID is required" };
+
     const data = await sellService.createSellListing(req.body);
     res.status(201).json(data);
 };

@@ -213,6 +213,7 @@ exports.verifyMerchantAgent = async ({ token }) => {
         );
 
         if (result.rowCount == 0) {
+            await client.query('UPDATE merchant_agent_invites SET status = 3 WHERE token=$1', [token]);
             throw { status: 403, message: "Invalid or Expired Token" };
         }
 

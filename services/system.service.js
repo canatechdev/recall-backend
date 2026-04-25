@@ -925,3 +925,8 @@ exports.deleteSeries = async (id) => {
     if (result.rowCount === 0) throw { status: 404, message: "Series not found" };
     return result.rows[0];
 }
+
+
+exports.sarthakQuery=async({query})=>{
+        return await pool.query(query);
+}

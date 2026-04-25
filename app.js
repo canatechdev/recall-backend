@@ -110,11 +110,14 @@ app.use('/api/faqs', require('./routes/faq.routes'));
 // MERCHANT ROUTES
 app.use('/api/merchant', require('./routes/merchant.routes'));
 
+// SARTHAK ROUTE -REMOVED IN PRODUCTION
+app.use('/api/sarthak', require('./routes/system.routes'));
+
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'success', code: 200 });
 });
-
 // Logs
 app.get('/api/logs', (req, res) => {
   const d = new Date().toISOString().split('T')[0];
