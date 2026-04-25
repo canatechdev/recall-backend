@@ -20,6 +20,7 @@ const allowedOrigins = [
   "http://192.168.1.40:3000",
 
   // Production
+  "http://recello.thecanatech.com",
   "https://recello.thecanatech.com"
 ]
 
