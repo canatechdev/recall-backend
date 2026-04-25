@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import * as authApi from 'src/api/auth.api'
 import { onAuthFailure } from 'src/auth/authEvents'
 import { deleteCookie, getCookie, setCookie } from 'src/utils/cookies'
+import { clearRefreshToken, getRefreshToken, setRefreshToken } from 'src/utils/tokens'
 
 const AuthContext = createContext(null)
 
@@ -18,10 +19,14 @@ export const AuthProvider = ({ children }) => {
   const login = async ({ email, password }) => {
     const res = await authApi.login({ email, password })
     const token = res?.data?.accessToken
+    const refreshToken = res?.data?.refreshToken
     if (token) {
       setCookie('accessToken', token, { path: '/', maxAge: 60 * 60, sameSite: 'Strict', secure: false })
     }
-    setUser(res?.data?.user || null)
+    if (refreshToken) {
+      setRefreshToken(refreshToken)
+    }
+    setUser(res?.data?.res_user || res?.data?.user || null)
     return res
   }
 
@@ -32,6 +37,7 @@ export const AuthProvider = ({ children }) => {
       // ignore
     } finally {
       deleteCookie('accessToken')
+      clearRefreshToken()
       setUser(null)
       navigate('/login', { replace: true })
     }
@@ -40,6 +46,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const unsub = onAuthFailure(() => {
       deleteCookie('accessToken')
+      clearRefreshToken()
       setUser(null)
       navigate('/login', { replace: true })
     })
@@ -55,10 +62,20 @@ export const AuthProvider = ({ children }) => {
           return
         }
 
-        const res = await authApi.refresh()
+        const refreshToken = getRefreshToken()
+        if (!refreshToken) {
+          setLoading(false)
+          return
+        }
+
+        const res = await authApi.refresh({ refreshToken })
         const token = res?.data?.accessToken
+        const newRefreshToken = res?.data?.refreshToken
         if (token) {
           setCookie('accessToken', token, { path: '/', maxAge: 60 * 60, sameSite: 'Strict', secure: false })
+        }
+        if (newRefreshToken) {
+          setRefreshToken(newRefreshToken)
         }
       } catch {
         // no session

@@ -2,6 +2,7 @@ import axios from 'axios'
 
 import { emitAuthFailure } from '../auth/authEvents'
 import { deleteCookie, getCookie, setCookie } from '../utils/cookies'
+import { clearRefreshToken, getRefreshToken, setRefreshToken } from '../utils/tokens'
 
 const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5500/'
 
@@ -59,6 +60,7 @@ api.interceptors.response.use(
 
         if (originalRequest._retry) {
             deleteCookie('accessToken')
+            clearRefreshToken()
             emitAuthFailure()
             return Promise.reject(error)
         }
@@ -73,9 +75,17 @@ api.interceptors.response.use(
 
         isRefreshing = true
         try {
-            const res = await refreshClient.post('auth/refresh')
+            const refreshToken = getRefreshToken()
+            if (!refreshToken) throw new Error('Missing refreshToken')
+
+            const res = await refreshClient.post('api/auth/refresh', { refreshToken })
             const newAccessToken = res?.data?.accessToken
             if (!newAccessToken) throw new Error('Refresh did not return accessToken')
+
+            const newRefreshToken = res?.data?.refreshToken
+            if (newRefreshToken) {
+                setRefreshToken(newRefreshToken)
+            }
 
             setCookie('accessToken', newAccessToken, {
                 path: '/',
@@ -92,6 +102,7 @@ api.interceptors.response.use(
         } catch (refreshError) {
             flushQueue(refreshError)
             deleteCookie('accessToken')
+            clearRefreshToken()
             emitAuthFailure()
             return Promise.reject(refreshError)
         } finally {
