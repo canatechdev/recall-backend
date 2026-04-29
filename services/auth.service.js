@@ -39,10 +39,10 @@ exports.verifyOTP = async (data) => {
     const createdAt = new Date(otpRecord.created_at);
     const now = new Date();
     const diffMinutes = Math.floor((now - createdAt) / 60000);
-
-    if (diffMinutes > 9) {
-        throw { status: 401, message: "OTP Expired Request New" };
-    }
+    
+    // if (diffMinutes > 9) {
+    //     throw { status: 401, message: "OTP Expired Request New" };
+    // }
     if (otpRecord.attempts >= 6) {
         throw { status: 429, message: "Max retries Exceeded" };
     }

@@ -122,6 +122,18 @@ async function processUploadedFile(req, res) {
     if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
 
     try {
+        const DEBUG = String(process.env.DEBUG_BRANDS_EXCEL_IMPORT || '').toLowerCase() === '1'
+            || String(process.env.DEBUG_BRANDS_EXCEL_IMPORT || '').toLowerCase() === 'true';
+
+        if (DEBUG) {
+            console.log('[brands-import] file:', {
+                originalname: req.file.originalname,
+                mimetype: req.file.mimetype,
+                size: req.file.size,
+                hasBuffer: !!req.file.buffer,
+                hasPath: !!req.file.path,
+            });
+        }
         // ── Parse sheet data ──────────────────────────────────────────────────
         const workbook = req.file.buffer
             ? xlsx.read(req.file.buffer, { type: 'buffer' })
@@ -150,12 +162,18 @@ async function processUploadedFile(req, res) {
                 message: 'Invalid template: could not find header row "Brand Name *" in column A',
             });
         }
+        if (DEBUG) console.log('[brands-import] detected headerRow:', headerRow);
         const firstDataRow = headerRow + 1; // 1-based
 
         const rows = xlsx.utils.sheet_to_json(sheet, {
             header: ['name', 'slug', 'alt_text', 'category_slug'],
             range: firstDataRow - 1, // SheetJS expects 0-based row index
         });
+
+        if (DEBUG) {
+            console.log('[brands-import] parsed rows:', rows.length);
+            console.log('[brands-import] first row preview:', rows[0]);
+        }
 
         const inserted = [], failedRows = [];
         const FIRST_DATA_EXCEL_ROW = firstDataRow;
@@ -186,13 +204,13 @@ async function processUploadedFile(req, res) {
                     await client.query('BEGIN');
 
                     const brandResult = await client.query(
-                        `INSERT INTO brands (name, slug, description, status)
-                         VALUES ($1, $2, $3, 1)
+                        `INSERT INTO brands (name, slug, status)
+                         VALUES ($1, $2, 1)
                          ON CONFLICT (slug) DO UPDATE
                            SET name = EXCLUDED.name,
-                               description = EXCLUDED.description
+                               status = EXCLUDED.status
                          RETURNING id`,
-                        [name, slug, altText]
+                        [name, slug]
                     );
                     const brandId = brandResult.rows[0].id;
 
@@ -231,7 +249,21 @@ async function processUploadedFile(req, res) {
 
             } catch (err) {
                 // logger.error(`Row ${EXCEL_ROW_NUM} failed:`, err.message);
-                failedRows.push({ rowNumber: EXCEL_ROW_NUM, data: row, error: err.message });
+                if (DEBUG) {
+                    console.log('[brands-import] row failed:', {
+                        rowNumber: EXCEL_ROW_NUM,
+                        error: err?.message,
+                        code: err?.code,
+                        detail: err?.detail,
+                    });
+                }
+                failedRows.push({
+                    rowNumber: EXCEL_ROW_NUM,
+                    data: row,
+                    error: err?.message || 'Row failed',
+                    code: err?.code,
+                    detail: err?.detail,
+                });
             }
         }
 
