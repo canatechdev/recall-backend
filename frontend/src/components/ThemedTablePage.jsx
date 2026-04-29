@@ -41,6 +41,25 @@ const ThemedTablePage = ({
 }) => {
     const resolvedRowKey = rowKey || ((row) => row?.id)
 
+    const hasSerialColumn = (columns || []).some((col) => {
+        const key = String(col?.key || '')
+        return ['__serial', 'sr', 'srno', 'sr_no', 'srNo', 'index', '_idx', '_rowIndex'].includes(key)
+    })
+
+    const columnsToRender = hasSerialColumn
+        ? columns
+        : [
+            {
+                key: '__serial',
+                label: 'Sr.No',
+                headerClassName: 'text-center',
+                cellClassName: 'text-center',
+                headerStyle: { width: 80 },
+                render: (_row, ctx) => (ctx?.rowIndex ?? 0) + 1,
+            },
+            ...columns,
+        ]
+
     const getPageItems = (page, totalPages) => {
         if (!totalPages || totalPages < 1) return []
 
@@ -153,7 +172,7 @@ const ThemedTablePage = ({
                         >
                             <CTableHead>
                                 <CTableRow className="border-bottom">
-                                    {columns.map((col) => (
+                                    {columnsToRender.map((col) => (
                                         <CTableHeaderCell
                                             key={col.key}
                                             className={classNames(
@@ -170,7 +189,7 @@ const ThemedTablePage = ({
 
                             <CTableBody>
                                 {rows?.length ? (
-                                    rows.flatMap((row) => {
+                                    rows.flatMap((row, rowIndex) => {
                                         const baseKey = resolvedRowKey(row)
                                         const isExpanded = Boolean(rowExpansion?.isExpanded?.(row))
                                         const baseRow = (
@@ -178,13 +197,15 @@ const ThemedTablePage = ({
                                                 key={baseKey}
                                                 className={classNames('border-bottom', getRowClassName?.(row))}
                                             >
-                                                {columns.map((col) => (
+                                                {columnsToRender.map((col) => (
                                                     <CTableDataCell
                                                         key={col.key}
                                                         className={col.cellClassName}
                                                         style={col.cellStyle}
                                                     >
-                                                        {typeof col.render === 'function' ? col.render(row) : row?.[col.key]}
+                                                        {typeof col.render === 'function'
+                                                            ? col.render(row, { rowIndex })
+                                                            : row?.[col.key]}
                                                     </CTableDataCell>
                                                 ))}
                                             </CTableRow>
@@ -200,7 +221,7 @@ const ThemedTablePage = ({
                                                     className={classNames('border-bottom', rowExpansion?.rowClassName)}
                                                 >
                                                     <CTableDataCell
-                                                        colSpan={columns.length}
+                                                        colSpan={columnsToRender.length}
                                                         className={rowExpansion?.cellClassName}
                                                         style={rowExpansion?.cellStyle}
                                                     >
@@ -212,7 +233,7 @@ const ThemedTablePage = ({
                                     })
                                 ) : (
                                     <CTableRow>
-                                        <CTableDataCell colSpan={columns.length} className="py-4 text-muted">
+                                        <CTableDataCell colSpan={columnsToRender.length} className="py-4 text-muted">
                                             {emptyText || 'No records found'}
                                         </CTableDataCell>
                                     </CTableRow>

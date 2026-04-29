@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { get_services_all, create_service, delete_service, toggle_service, update_service } from "src/api/system_service"
+import { get_services_all, create_service, delete_service, update_service } from "src/api/system_service"
 import CIcon from '@coreui/icons-react'
 import { cilNoteAdd, cilPlus, cilX } from '@coreui/icons'
 import ThemedTablePage from 'src/components/ThemedTablePage'
@@ -16,7 +16,6 @@ const Services = () => {
     const [editId, setEditId] = useState(null)
 
     const [query, setQuery] = useState('')
-    const [statusFilter, setStatusFilter] = useState('all') // all | enabled | suspended
 
     const showToast = (type, msg) => {
         setToast({ type, msg })
@@ -95,20 +94,6 @@ const Services = () => {
         else createServiceHandler();
     }
 
-    const toggleServiceStatus = async (id, currentStatus) => {
-        if (!id) return
-        const action = currentStatus === true ? 'Suspend' : 'Enable'
-        if (confirm(`${action} this service?`)) {
-            try {
-                await toggle_service(id, action === 'Enable')
-                showToast(action === 'Enable' ? 'info' : 'success', action === 'Enable' ? 'Service Enabled' : 'Service Suspended')
-                fetchServices()
-            } catch (err) {
-                showToast('danger', err.response?.data?.message || `Failed to ${action.toLowerCase()} service.`)
-            }
-        }
-    }
-
     const deleteService = async (id) => {
         if (!id) return
         if (!confirm('Delete this service?')) return
@@ -125,15 +110,10 @@ const Services = () => {
         const q = query.trim().toLowerCase()
         return services
             .filter((s) => {
-                if (statusFilter === 'enabled') return s.status === true
-                if (statusFilter === 'suspended') return s.status === false
-                return true
-            })
-            .filter((s) => {
                 if (!q) return true
                 return String(s?.name || '').toLowerCase().includes(q)
             })
-    }, [services, query, statusFilter])
+    }, [services, query])
 
     const rows = filteredServices.map((s, idx) => ({ ...s, _idx: idx + 1 }))
 
@@ -175,12 +155,6 @@ const Services = () => {
                     <button onClick={() => editService(s)} className="btn btn-sm btn-outline-success">
                         Edit
                     </button>
-                    <button
-                        onClick={() => toggleServiceStatus(s.id, s.status)}
-                        className={`btn btn-sm btn-outline-${s.status === true ? 'danger' : 'info'}`}
-                    >
-                        {s.status === true ? 'Suspend' : 'Enable'}
-                    </button>
                     <button onClick={() => deleteService(s.id)} className="btn btn-sm btn-outline-danger">
                         Delete
                     </button>
@@ -200,26 +174,13 @@ const Services = () => {
                     onChange={(e) => setQuery(e.target.value)}
                 />
             </div>
-            <div>
-                <div className="small text-medium-emphasis mb-1">Status</div>
-                <select
-                    className="form-select form-select-sm"
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                >
-                    <option value="all">All</option>
-                    <option value="enabled">Enabled</option>
-                    <option value="suspended">Suspended</option>
-                </select>
-            </div>
             <button
                 type="button"
                 className="btn btn-sm btn-outline-secondary"
                 onClick={() => {
                     setQuery('')
-                    setStatusFilter('all')
                 }}
-                disabled={!query && statusFilter === 'all'}
+                disabled={!query}
             >
                 Reset
             </button>

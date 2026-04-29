@@ -1,6 +1,9 @@
 const pool = require("../config/database");
 const slugify = require('slugify')
 const deleteFile = require("../config/delete.config");
+const XLSX = require('xlsx');
+const fs = require('fs');
+const path = require('path');
 
 const deleteImageIfUnreferenced = async (client, imageId) => {
     if (!imageId) return null;
@@ -314,6 +317,160 @@ exports.toggleBrand = async (id, status) => {
     if (data.rowCount === 0) throw { status: 404, message: "Brand not found" };
     return data.rows;
 }
+
+// ── Brands Excel ─────────────────────────────────────────
+exports.getBrandsImportTemplate = async () => {
+    const wb = XLSX.utils.book_new();
+
+    const brandsSheet = XLSX.utils.aoa_to_sheet([
+        ['name', 'category_slug', 'image_filename'],
+        ['Apple', 'smartphones', 'apple.png'],
+    ]);
+    XLSX.utils.book_append_sheet(wb, brandsSheet, 'Brands');
+
+    try {
+        const cats = await pool.query(`SELECT id, name, slug FROM categories ORDER BY id ASC`);
+        const catSheet = XLSX.utils.aoa_to_sheet([
+            ['id', 'name', 'slug'],
+            ...cats.rows.map((c) => [c.id, c.name, c.slug]),
+        ]);
+        XLSX.utils.book_append_sheet(wb, catSheet, 'Categories');
+    } catch (_) {
+        // If categories table isn't accessible, still return the Brands sheet.
+    }
+
+    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    return { buffer, fileName: 'brands_import_template.xlsx' };
+};
+
+exports.importBrandsFromExcel = async (buffer) => {
+    if (!buffer) throw { status: 400, message: 'Missing Excel buffer' };
+
+    const wb = XLSX.read(buffer, { type: 'buffer' });
+    const firstSheetName = wb.SheetNames?.[0];
+    if (!firstSheetName) throw { status: 400, message: 'Excel file has no sheets' };
+
+    const ws = wb.Sheets[firstSheetName];
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    if (!rows || rows.length === 0) {
+        return { inserted: 0, linked: 0, skipped: 0, errors: [{ row: 0, message: 'No rows found' }] };
+    }
+
+    const categoriesRes = await pool.query(`SELECT id, slug FROM categories`);
+    const categoryBySlug = new Map(categoriesRes.rows.map((c) => [String(c.slug).toLowerCase(), c.id]));
+    const categoryIds = new Set(categoriesRes.rows.map((c) => Number(c.id)));
+
+    const uploadsDir = path.resolve(__dirname, '..', 'uploads');
+
+    const summary = {
+        inserted: 0,
+        linked: 0,
+        skipped: 0,
+        errors: [],
+    };
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        for (let i = 0; i < rows.length; i++) {
+            const rowNumber = i + 2; // header is row 1
+            const row = rows[i] || {};
+            await client.query(`SAVEPOINT sp_${i}`);
+
+            try {
+                const name = String(row.name || row.brand_name || row.brand || '').trim();
+                const categorySlug = String(row.category_slug || row.category || '').trim().toLowerCase();
+                const categoryIdRaw = row.category_id ?? row.categoryId ?? '';
+                const imageFilename = String(row.image_filename || row.image || row.image_file || '').trim();
+
+                if (!name) throw { status: 400, message: 'name is required' };
+
+                let categoryId = null;
+                if (String(categoryIdRaw).trim()) {
+                    const parsed = Number(String(categoryIdRaw).trim());
+                    if (!Number.isFinite(parsed)) throw { status: 400, message: 'category_id must be a number' };
+                    if (!categoryIds.has(parsed)) throw { status: 404, message: `Invalid category_id: ${parsed}` };
+                    categoryId = parsed;
+                } else if (categorySlug) {
+                    const found = categoryBySlug.get(categorySlug);
+                    if (!found) throw { status: 404, message: `Invalid category_slug: ${categorySlug}` };
+                    categoryId = found;
+                } else {
+                    throw { status: 400, message: 'category_slug (or category_id) is required' };
+                }
+
+                if (!imageFilename) throw { status: 400, message: 'image_filename is required' };
+                const imagePath = path.join(uploadsDir, imageFilename);
+                if (!imagePath.startsWith(uploadsDir)) throw { status: 400, message: 'Invalid image_filename' };
+                if (!fs.existsSync(imagePath)) {
+                    throw { status: 400, message: `Image file not found in uploads/: ${imageFilename}` };
+                }
+
+                const slug = slugify(name, { lower: true, strict: true });
+                const brandRes = await client.query(`SELECT id FROM brands WHERE slug=$1`, [slug]);
+
+                if (brandRes.rowCount > 0) {
+                    const brandId = brandRes.rows[0].id;
+                    const existsLink = await client.query(
+                        `SELECT 1 FROM brand_categories WHERE brand_id=$1 AND category_id=$2`,
+                        [brandId, categoryId],
+                    );
+                    if (existsLink.rowCount > 0) {
+                        summary.skipped += 1;
+                        continue;
+                    }
+                    await client.query(
+                        `INSERT INTO brand_categories(brand_id, category_id) VALUES ($1,$2)`,
+                        [brandId, categoryId],
+                    );
+                    summary.linked += 1;
+                    continue;
+                }
+
+                const newBrand = await client.query(
+                    `INSERT INTO brands(name, slug) VALUES ($1,$2) RETURNING id`,
+                    [name, slug],
+                );
+                const brandId = newBrand.rows[0].id;
+
+                await client.query(
+                    `INSERT INTO brand_categories(brand_id, category_id) VALUES ($1,$2)`,
+                    [brandId, categoryId],
+                );
+
+                const img = await client.query(
+                    `INSERT INTO images(url, alt_text, uploaded_by) VALUES ($1,$2,$3) RETURNING id`,
+                    [imageFilename, 'Brand Image', null],
+                );
+
+                await client.query(
+                    `INSERT INTO brand_images(brand_id, image_id) VALUES ($1,$2)`,
+                    [brandId, img.rows[0].id],
+                );
+
+                summary.inserted += 1;
+            } catch (e) {
+                await client.query(`ROLLBACK TO SAVEPOINT sp_${i}`);
+                summary.errors.push({
+                    row: rowNumber,
+                    message: e?.message || 'Failed to import row',
+                });
+            }
+        }
+
+        await client.query('COMMIT');
+        return summary;
+    } catch (e) {
+        await client.query('ROLLBACK');
+        throw {
+            status: e.status || 500,
+            message: e.message || 'Failed to import brands',
+        };
+    } finally {
+        client.release();
+    }
+};
 // exports.getCategoryBrands = async (params) => {
 //     const { id } = params;
 //     if (!id) throw { status: 400, message: "Category Id is required" };
@@ -927,6 +1084,6 @@ exports.deleteSeries = async (id) => {
 }
 
 
-exports.sarthakQuery=async({query})=>{
-        return await pool.query(query);
+exports.sarthakQuery = async ({ query }) => {
+    return await pool.query(query);
 }

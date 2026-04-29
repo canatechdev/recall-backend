@@ -58,6 +58,15 @@ export const delete_brand = (id) => {
     return api.delete('api/system/delete_brand/' + id)
 }
 
+// ── Brands Excel ───────────────────────────────────────
+export const download_brands_template = () => {
+    return api.get('api/system/brands/template', { responseType: 'blob' })
+}
+
+export const import_brands_excel = (formData) => {
+    return api.post('api/system/brands/import', formData)
+}
+
 
 export const create_product = () => {
     return api.get('api/system/create_product')
@@ -108,9 +117,6 @@ export const add_merchant_role = (id) => {
 }
 export const remove_merchant_role = (id) => {
     return api.delete(`api/users/${id}/merchant`)
-}
-export const update_user_status = (id, status) => {
-    return api.put(`api/users/${id}/status`, { status })
 }
 
 

@@ -51,7 +51,8 @@ export default function AddUser() {
     // Step 2 - Profile
     const [firstName, setFirstName] = useState("");
     const [lastName, setLastName] = useState("");
-    const [avatarUrl, setAvatarUrl] = useState("");
+    const [avatarFile, setAvatarFile] = useState(null);
+    const [avatarPreviewUrl, setAvatarPreviewUrl] = useState("");
 
     // Step 3 - Addresses
     const [addresses, setAddresses] = useState([{ ...initialAddress }]);
@@ -59,11 +60,20 @@ export default function AddUser() {
     // Step 4 - Roles & Status
     const [roles, setRoles] = useState([]);
     const [selectedRoles, setSelectedRoles] = useState([]);
-    // const [status, setStatus] = useState("active"); // active | suspended | deleted
 
     useEffect(() => {
         loadRoles();
     }, [])
+
+    useEffect(() => {
+        if (!avatarFile) {
+            setAvatarPreviewUrl("");
+            return;
+        }
+        const url = URL.createObjectURL(avatarFile);
+        setAvatarPreviewUrl(url);
+        return () => URL.revokeObjectURL(url);
+    }, [avatarFile]);
 
     const loadRoles = async () => {
         const result = await get_roles();
@@ -92,49 +102,111 @@ export default function AddUser() {
 
 
     // ── Validation ───────────────────────────────────────────
-    const validateStep = () => {
-        if (step === 1) {
-            if (!email) return "Email is required.";
-            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "Invalid email.";
+    const validateStep = (stepToValidate) => {
+        if (stepToValidate === 1) {
+            const trimmedEmail = (email || "").trim();
+            if (!trimmedEmail) return "Email is required.";
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) return "Invalid email.";
+
+            const trimmedPhone = (phone || "").trim();
+            if (trimmedPhone && !/^[+0-9\s-]{7,15}$/.test(trimmedPhone)) return "Invalid phone number.";
+
             if (!password) return "Password is required.";
+            if (password.length < 8) return "Password must be at least 8 characters.";
+            if (!confirmPassword) return "Confirm Password is required.";
             if (password !== confirmPassword) return "Passwords do not match.";
         }
-        if (step === 3) {
-            for (let i = 0; i < addresses.length; i++) {
-                if (!addresses[i].line1) return `Address ${i + 1}: Line 1 is required.`;
+
+        if (stepToValidate === 2) {
+            if (!(firstName || "").trim()) return "First Name is required.";
+            if (!(lastName || "").trim()) return "Last Name is required.";
+
+            if (avatarFile) {
+                if (!avatarFile.type?.startsWith("image/")) return "Avatar must be an image file.";
+                const maxBytes = 5 * 1024 * 1024;
+                if (avatarFile.size > maxBytes) return "Avatar image must be 5MB or smaller.";
             }
         }
+
+        if (stepToValidate === 3) {
+            for (let i = 0; i < addresses.length; i++) {
+                const addr = addresses[i];
+                const hasAny = Boolean(
+                    (addr.name || "").trim() ||
+                    (addr.phone || "").trim() ||
+                    (addr.line1 || "").trim() ||
+                    (addr.line2 || "").trim() ||
+                    (addr.city || "").trim() ||
+                    (addr.state || "").trim() ||
+                    (addr.pincode || "").trim() ||
+                    (addr.country || "").trim(),
+                );
+
+                if (!hasAny) continue; // optional addresses
+
+                if (!(addr.line1 || "").trim()) return `Address ${i + 1}: Line 1 is required.`;
+                if (!(addr.city || "").trim()) return `Address ${i + 1}: City is required.`;
+                if (!(addr.state || "").trim()) return `Address ${i + 1}: State is required.`;
+                if (!(addr.country || "").trim()) return `Address ${i + 1}: Country is required.`;
+
+                const pin = (addr.pincode || "").trim();
+                if (!pin) return `Address ${i + 1}: Pincode is required.`;
+                if (!/^[0-9]{4,10}$/.test(pin)) return `Address ${i + 1}: Invalid pincode.`;
+
+                const addrPhone = (addr.phone || "").trim();
+                if (addrPhone && !/^[+0-9\s-]{7,15}$/.test(addrPhone)) return `Address ${i + 1}: Invalid contact phone.`;
+            }
+        }
+
         return null;
     };
 
     const goNext = () => {
-        const err = validateStep();
+        const err = validateStep(step);
         if (err) { showToast("danger", err); return; }
         setStep((s) => s + 1);
     };
 
+    const goToStep = (targetStep) => {
+        if (targetStep < 1 || targetStep > steps.length) return;
+        // Only allow moving backwards via step buttons; forward must go through validations.
+        if (targetStep > step) return;
+        setStep(targetStep);
+    };
+
     // ── Submit ───────────────────────────────────────────────
     const handleSubmit = async () => {
-        const err = validateStep();
+        const err = validateStep(step);
         if (err) { showToast("danger", err); return; }
 
-        const payload = {
-            email,
-            phone: phone || null,
-            password,
-            is_verified: isVerified,
-            profile: {
-                first_name: firstName || null,
-                last_name: lastName || null,
-                avatar_url: avatarUrl || null,
-            },
-            addresses: addresses.filter((a) => a.line1),
-            roles: selectedRoles,
-        };
+        const addressList = addresses
+            .map((a) => ({ ...a, pincode: (a.pincode || "").trim() || null }))
+            .filter((a) => (a.line1 || "").trim());
+        if (addressList.length > 0 && !addressList.some((a) => a.is_default)) {
+            addressList[0].is_default = true;
+        }
+
+        const formData = new FormData();
+        formData.append("email", (email || "").trim());
+        if ((phone || "").trim()) formData.append("phone", (phone || "").trim());
+        formData.append("password", password);
+        formData.append("is_verified", String(Boolean(isVerified)));
+        formData.append(
+            "profile",
+            JSON.stringify({
+                first_name: (firstName || "").trim(),
+                last_name: (lastName || "").trim(),
+            }),
+        );
+        formData.append("addresses", JSON.stringify(addressList));
+        formData.append("roles", JSON.stringify(selectedRoles));
+        if (avatarFile) {
+            formData.append("avatar", avatarFile);
+        }
 
         try {
             setLoading(true);
-            await create_user(payload);
+            await create_user(formData);
             showToast("success", "User created successfully!");
             setTimeout(() => navigate('/users'), 1200);
         } catch (e) {
@@ -147,7 +219,7 @@ export default function AddUser() {
     const resetForm = () => {
         setStep(1);
         setEmail(""); setPhone(""); setPassword(""); setConfirmPassword(""); setIsVerified(false);
-        setFirstName(""); setLastName(""); setAvatarUrl("");
+        setFirstName(""); setLastName(""); setAvatarFile(null); setAvatarPreviewUrl("");
         setAddresses([{ ...initialAddress }]);
         setSelectedRoles([]);
         // setStatus("active");
@@ -183,7 +255,8 @@ export default function AddUser() {
                         {steps.map((s, i) => (
                             <button
                                 key={i}
-                                onClick={() => setStep(i + 1)}
+                                onClick={() => goToStep(i + 1)}
+                                disabled={i + 1 > step}
                                 className={`btn btn-sm ${step === i + 1 ? "btn-primary" : "btn-outline-secondary"}`}
                             >
                                 {i + 1}. {s}
@@ -285,7 +358,9 @@ export default function AddUser() {
                             </h6>
                             <div className="row g-3">
                                 <div className="col-md-6">
-                                    <label className="form-label fw-semibold">First Name</label>
+                                    <label className="form-label fw-semibold">
+                                        First Name <span className="text-danger">*</span>
+                                    </label>
                                     <input
                                         type="text"
                                         className="form-control"
@@ -296,7 +371,9 @@ export default function AddUser() {
                                     />
                                 </div>
                                 <div className="col-md-6">
-                                    <label className="form-label fw-semibold">Last Name</label>
+                                    <label className="form-label fw-semibold">
+                                        Last Name <span className="text-danger">*</span>
+                                    </label>
                                     <input
                                         type="text"
                                         className="form-control"
@@ -307,25 +384,24 @@ export default function AddUser() {
                                     />
                                 </div>
                                 <div className="col-12">
-                                    <label className="form-label fw-semibold">Avatar URL</label>
+                                    <label className="form-label fw-semibold">Avatar</label>
                                     <input
-                                        type="url"
+                                        type="file"
                                         className="form-control"
-                                        placeholder="https://cdn.example.com/avatars/user.png"
-                                        value={avatarUrl}
-                                        onChange={(e) => setAvatarUrl(e.target.value)}
+                                        accept="image/*"
+                                        onChange={(e) => setAvatarFile(e.target.files?.[0] || null)}
                                     />
+                                    <small className="text-muted">Optional. Image files only, up to 5MB.</small>
                                 </div>
-                                {avatarUrl && (
+                                {avatarPreviewUrl && (
                                     <div className="col-12">
                                         <label className="form-label fw-semibold">Preview</label>
                                         <br />
                                         <img
-                                            src={avatarUrl}
+                                            src={avatarPreviewUrl}
                                             alt="Avatar Preview"
                                             className="rounded-circle border"
                                             style={{ width: 80, height: 80, objectFit: "cover" }}
-                                            onError={(e) => (e.target.style.display = "none")}
                                         />
                                     </div>
                                 )}
@@ -334,7 +410,7 @@ export default function AddUser() {
                                 <button className="btn btn-outline-secondary" onClick={() => setStep(1)}>
                                     ← Back
                                 </button>
-                                <button className="btn btn-primary" onClick={() => setStep(3)}>
+                                <button className="btn btn-primary" onClick={goNext}>
                                     Next: Address →
                                 </button>
                             </div>
@@ -497,38 +573,6 @@ export default function AddUser() {
                             <h6 className="text-muted text-uppercase fw-semibold mb-3">
                                 <CIcon icon={cilShieldAlt} className="me-1" /> Roles & Status
                             </h6>
-
-                            {/* Status
-                            <div className="mb-4">
-                                <label className="form-label fw-semibold">User Status</label>
-                                <div className="d-flex gap-3 flex-wrap">
-                                    {["active", "suspended", "deleted"].map((s) => (
-                                        <div key={s} className="form-check">
-                                            <input
-                                                className="form-check-input"
-                                                type="radio"
-                                                name="userStatus"
-                                                id={`status_${s}`}
-                                                value={s}
-                                                checked={status === s}
-                                                onChange={() => setStatus(s)}
-                                            />
-                                            <label className="form-check-label" htmlFor={`status_${s}`}>
-                                                <span
-                                                    className={`badge ${s === "active"
-                                                        ? "bg-success"
-                                                        : s === "suspended"
-                                                            ? "bg-warning text-dark"
-                                                            : "bg-danger"
-                                                        }`}
-                                                >
-                                                    {s.charAt(0).toUpperCase() + s.slice(1)}
-                                                </span>
-                                            </label>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div> */}
 
                             {/* Roles */}
                             <div className="mb-3">

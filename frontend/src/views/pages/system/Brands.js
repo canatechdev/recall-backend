@@ -1,5 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { get_cat_brands, create_brand, delete_brand, get_categories, toggle_brand, update_brand } from "src/api/system_service"
+import {
+    get_cat_brands,
+    create_brand,
+    delete_brand,
+    get_categories,
+    update_brand,
+    download_brands_template,
+    import_brands_excel,
+} from "src/api/system_service"
 import CIcon from '@coreui/icons-react'
 import { cilNoteAdd, cilPlus, cilX } from '@coreui/icons'
 import ThemedTablePage from 'src/components/ThemedTablePage'
@@ -18,7 +26,9 @@ const Brands = () => {
     const [editId, setEditId] = useState(null)
 
     const [query, setQuery] = useState('')
-    const [statusFilter, setStatusFilter] = useState('all') // all | enabled | suspended
+
+    const [importFile, setImportFile] = useState(null)
+    const [importLoading, setImportLoading] = useState(false)
 
     const showToast = (type, msg) => {
         setToast({ type, msg })
@@ -71,6 +81,49 @@ const Brands = () => {
         fetchCategories();
     }, [])
 
+    const downloadTemplate = async () => {
+        try {
+            const res = await download_brands_template()
+            const blob = new Blob([res.data], {
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            })
+            const url = window.URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = 'brands_import_template.xlsx'
+            document.body.appendChild(a)
+            a.click()
+            a.remove()
+            window.URL.revokeObjectURL(url)
+        } catch (err) {
+            showToast('danger', err.response?.data?.message || 'Failed to download template.')
+        }
+    }
+
+    const importExcelHandler = async () => {
+        if (!importFile) return showToast('danger', 'Please choose an Excel file to import.')
+        if (!confirm('Import brands from this Excel file?')) return
+
+        try {
+            setImportLoading(true)
+            const formData = new FormData()
+            formData.append('file', importFile)
+            const res = await import_brands_excel(formData)
+
+            const { inserted = 0, linked = 0, skipped = 0, errors = [] } = res?.data || {}
+            const errCount = Array.isArray(errors) ? errors.length : 0
+            showToast('success', `Imported: ${inserted}, Linked: ${linked}, Skipped: ${skipped}, Errors: ${errCount}`)
+            if (errCount) console.error('Brand import errors:', errors)
+
+            setImportFile(null)
+            fetchBrands(category)
+        } catch (err) {
+            showToast('danger', err.response?.data?.message || 'Failed to import brands.')
+        } finally {
+            setImportLoading(false)
+        }
+    }
+
     const createBrandHandler = async () => {
         if (!name || !category || !file) return showToast("danger", "Brand Name, Category & Image are required")
         if (confirm(`Is spelled "${name}" correct?`)) {
@@ -114,23 +167,6 @@ const Brands = () => {
         else createBrandHandler();
     }
 
-    const toggleBrandStatus = async (id, currentStatus) => {
-        if (!id) return
-        const action = currentStatus === true ? 'Suspend' : 'Enable'
-        if (confirm(`${action} this brand?`)) {
-            try {
-                await toggle_brand(id, action === 'Enable')
-                showToast(
-                    action === 'Enable' ? 'info' : 'success',
-                    action === 'Enable' ? 'Brand Enabled' : 'Brand Suspended',
-                )
-                fetchBrands(category)
-            } catch (err) {
-                showToast("danger", err.response?.data?.message || `Failed to ${action.toLowerCase()} brand.`)
-            }
-        }
-    }
-
     const deleteBrand = async (id) => {
         if (!id) return
         if (!confirm('Delete this brand?')) return
@@ -151,15 +187,10 @@ const Brands = () => {
         const q = query.trim().toLowerCase()
         return brands
             .filter((b) => {
-                if (statusFilter === 'enabled') return b.status === true
-                if (statusFilter === 'suspended') return b.status === false
-                return true
-            })
-            .filter((b) => {
                 if (!q) return true
                 return String(b?.name || '').toLowerCase().includes(q)
             })
-    }, [brands, query, statusFilter])
+    }, [brands, query])
 
     const rows = filteredBrands.map((b, idx) => ({ ...b, _idx: idx + 1 }))
 
@@ -197,12 +228,6 @@ const Brands = () => {
                     <button onClick={() => editBrand(b)} className="btn btn-sm btn-outline-success">
                         Edit
                     </button>
-                    <button
-                        onClick={() => toggleBrandStatus(b.id, b.status)}
-                        className={`btn btn-sm btn-outline-${b.status === true ? 'danger' : 'info'}`}
-                    >
-                        {b.status === true ? 'Suspend' : 'Enable'}
-                    </button>
                     <button onClick={() => deleteBrand(b.id)} className="btn btn-sm btn-outline-danger">
                         Delete
                     </button>
@@ -223,27 +248,13 @@ const Brands = () => {
                 />
             </div>
 
-            <div>
-                <div className="small text-medium-emphasis mb-1">Status</div>
-                <select
-                    className="form-select form-select-sm"
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                >
-                    <option value="all">All</option>
-                    <option value="enabled">Enabled</option>
-                    <option value="suspended">Suspended</option>
-                </select>
-            </div>
-
             <button
                 type="button"
                 className="btn btn-sm btn-outline-secondary"
                 onClick={() => {
                     setQuery('')
-                    setStatusFilter('all')
                 }}
-                disabled={!query && statusFilter === 'all'}
+                disabled={!query}
             >
                 Reset
             </button>
@@ -268,6 +279,29 @@ const Brands = () => {
                         ))}
                     </select>
                 </h4>
+
+                <div className="d-flex align-items-center gap-2 flex-wrap">
+                    <button type="button" className="btn btn-sm btn-outline-secondary" onClick={downloadTemplate}>
+                        Download Template
+                    </button>
+
+                    <input
+                        type="file"
+                        className="form-control form-control-sm"
+                        style={{ maxWidth: 240 }}
+                        accept=".xlsx,.xls"
+                        onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                    />
+
+                    <button
+                        type="button"
+                        className="btn btn-sm btn-outline-primary"
+                        onClick={importExcelHandler}
+                        disabled={!importFile || importLoading}
+                    >
+                        {importLoading ? 'Importing...' : 'Import Excel'}
+                    </button>
+                </div>
             </div>
 
             {isBrand && (

@@ -64,6 +64,23 @@ exports.deleteModelConfig = async (id) => {
 // ── Sell Questions ────────────────────────────────────────
 
 exports.getQuestions = async () => {
+    // Ensure yes/no questions always have backing options in DB (idempotent backfill)
+    await pool.query(
+        `WITH missing AS (
+            SELECT q.id
+            FROM sell_questions q
+            WHERE q.input_type = 'yes_no'
+              AND q.is_active = true
+              AND NOT EXISTS (
+                SELECT 1 FROM sell_question_options o WHERE o.question_id = q.id
+              )
+        )
+        INSERT INTO sell_question_options (question_id, text, price_deduction, sort_index)
+        SELECT id, 'Yes', 0, 1 FROM missing
+        UNION ALL
+        SELECT id, 'No', 0, 2 FROM missing`
+    );
+
     const questions = await pool.query(
         `
             SELECT  que.id,
@@ -189,6 +206,16 @@ exports.createQuestion = async (data) => {
             [text, description || null, input_type, sort_index || 1]
         );
         const question = result.rows[0];
+
+        // If yes/no type, create the fixed options so deductions/conditions can work end-to-end.
+        if (input_type === 'yes_no') {
+            await client.query(
+                `INSERT INTO sell_question_options(question_id, text, price_deduction, sort_index)
+                 VALUES ($1, 'Yes', 0, 1), ($1, 'No', 0, 2)`,
+                [question.id]
+            );
+        }
+
         let category_ids = [];
         if (category_slugs && category_slugs.length > 0) {
             for (let i = 0; i < category_slugs.length; i++) {
@@ -231,6 +258,23 @@ exports.updateQuestion = async (id, data) => {
         [text || null, description !== undefined ? description : null, input_type || null, sort_index || null, is_active != null ? is_active : null, id]
     );
     if (result.rowCount === 0) throw { status: 404, message: "Question not found" };
+
+    // If it is (or became) yes_no, ensure backing options exist.
+    if ((result.rows[0].input_type || '').toLowerCase() === 'yes_no') {
+        await pool.query(
+            `WITH missing AS (
+                SELECT $1::BIGINT AS question_id
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM sell_question_options o WHERE o.question_id = $1
+                )
+            )
+            INSERT INTO sell_question_options (question_id, text, price_deduction, sort_index)
+            SELECT question_id, 'Yes', 0, 1 FROM missing
+            UNION ALL
+            SELECT question_id, 'No', 0, 2 FROM missing`,
+            [id]
+        );
+    }
     return result.rows[0];
 };
 
@@ -402,6 +446,26 @@ exports.getQuestionsByCategorySlug = async (category_slug) => {
     const catRes = await pool.query(`SELECT id FROM categories WHERE slug=$1`, [category_slug]);
     if (catRes.rowCount === 0) throw { status: 404, message: "Category not found" };
     const category_id = catRes.rows[0].id;
+
+    // Ensure yes/no questions used in sell flow have options (idempotent backfill)
+    await pool.query(
+        `WITH missing AS (
+                        SELECT sq.id
+                        FROM sell_questions sq
+                        JOIN sell_category_questions scq ON scq.question_id = sq.id
+                        WHERE scq.category_id = $1
+                            AND sq.is_active = true
+                            AND sq.input_type = 'yes_no'
+                            AND NOT EXISTS (
+                                SELECT 1 FROM sell_question_options o WHERE o.question_id = sq.id
+                            )
+                )
+                INSERT INTO sell_question_options (question_id, text, price_deduction, sort_index)
+                SELECT id, 'Yes', 0, 1 FROM missing
+                UNION ALL
+                SELECT id, 'No', 0, 2 FROM missing`,
+        [category_id]
+    );
 
     // Get top-level questions for this category
     const questions = await pool.query(

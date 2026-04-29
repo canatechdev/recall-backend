@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { createBanner, deleteBanner, getBanners, toggleBannerStatus, updateBanner } from '../../../api/banner.api'
+import { createBanner, deleteBanner, getBanners, updateBanner } from '../../../api/banner.api'
 import Swal from 'sweetalert2'
 import ThemedTablePage from 'src/components/ThemedTablePage'
 
@@ -18,7 +18,6 @@ const HomeBanner = () => {
   const [imageUrl, setImageUrl] = useState('')
 
   const [query, setQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
 
   const [currentPage, setCurrentPage] = useState(1)
   const bannersPerPage = 5
@@ -140,27 +139,6 @@ const HomeBanner = () => {
     else createBannerHandler()
   }
 
-  // STATUS TOGGLE
-  const handleToggle = async (banner) => {
-    try {
-      const action = banner.is_active ? 'Suspend' : 'Enable'
-      const res = await Swal.fire({
-        title: `${action} Banner?`,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: action,
-        cancelButtonText: 'Cancel',
-      })
-      if (!res.isConfirmed) return
-
-      await toggleBannerStatus(banner.id, !banner.is_active)
-      await loadBanners()
-    } catch (err) {
-      console.error(err)
-      Swal.fire('Error', 'Failed to update status', 'error')
-    }
-  }
-
   const handleDelete = async (banner) => {
     try {
       if (!banner?.id) return
@@ -190,15 +168,10 @@ const HomeBanner = () => {
     const q = query.trim().toLowerCase()
     return banners
       .filter((b) => {
-        if (statusFilter === 'enabled') return Boolean(b.is_active) === true
-        if (statusFilter === 'suspended') return Boolean(b.is_active) === false
-        return true
-      })
-      .filter((b) => {
         if (!q) return true
         return String(b?.title || '').toLowerCase().includes(q)
       })
-  }, [banners, query, statusFilter])
+  }, [banners, query])
 
   // PAGINATION LOGIC
   const indexOfLast = currentPage * bannersPerPage
@@ -232,7 +205,7 @@ const HomeBanner = () => {
       label: 'Status',
       headerClassName: 'text-center',
       cellClassName: 'text-center',
-      render: (b) => (b.is_active ? 'Enabled' : 'Suspended'),
+      render: (b) => (b.is_active ? 'Enabled' : 'Inactive'),
     },
     {
       key: 'action',
@@ -243,12 +216,6 @@ const HomeBanner = () => {
         <div className="d-flex justify-content-center gap-2 flex-wrap">
           <button className="btn btn-sm btn-outline-success" onClick={() => editBanner(b)}>
             Edit
-          </button>
-          <button
-            className={`btn btn-sm btn-outline-${b.is_active ? 'danger' : 'info'}`}
-            onClick={() => handleToggle(b)}
-          >
-            {b.is_active ? 'Suspend' : 'Enable'}
           </button>
           <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(b)}>
             Delete
@@ -273,31 +240,14 @@ const HomeBanner = () => {
         />
       </div>
 
-      <div>
-        <div className="small text-medium-emphasis mb-1">Status</div>
-        <select
-          className="form-select form-select-sm"
-          value={statusFilter}
-          onChange={(e) => {
-            setStatusFilter(e.target.value)
-            setCurrentPage(1)
-          }}
-        >
-          <option value="all">All</option>
-          <option value="enabled">Enabled</option>
-          <option value="suspended">Suspended</option>
-        </select>
-      </div>
-
       <button
         type="button"
         className="btn btn-sm btn-outline-secondary"
         onClick={() => {
           setQuery('')
-          setStatusFilter('all')
           setCurrentPage(1)
         }}
-        disabled={!query && statusFilter === 'all'}
+        disabled={!query}
       >
         Reset
       </button>

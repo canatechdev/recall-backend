@@ -25,7 +25,7 @@ const Dashboard = () => {
       },
       {
         label: 'MONTHLY INCOME',
-        value: '$6,200',
+        value: '₹6,200',
         delta: '+ 8.2%',
         color: 'success',
         icon: cilWallet,

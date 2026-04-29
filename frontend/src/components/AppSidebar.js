@@ -14,7 +14,7 @@ import CIcon from '@coreui/icons-react'
 
 import { AppSidebarNav } from './AppSidebarNav'
 
-import { logo } from 'src/assets/brand/logo'
+import logo from '../assets/brand/Recello_logo.png'
 import { sygnet } from 'src/assets/brand/sygnet'
 
 // sidebar nav config
@@ -46,16 +46,21 @@ const AppSidebar = () => {
         dispatch({ type: 'set', sidebarShow: visible })
       }}
     >
-      <CSidebarHeader className="border-bottom">
-        <CSidebarBrand to="/">
-          <CIcon customClassName="sidebar-brand-full" icon={logo} height={32} />
-          <CIcon customClassName="sidebar-brand-narrow" icon={sygnet} height={32} />
-        </CSidebarBrand>
-        <CCloseButton
+      <CSidebarHeader className="border-bottom d-flex justify-content-center align-items-center">
+        {/* <CSidebarBrand to="/" className="d-flex align-items-center justify-content-center"> */}
+          <img
+            src={logo}
+            alt="Resello"
+            className="sidebar-brand-full"
+            style={{ display: 'inline', maxHeight: 50, maxWidth: 200, width: 'auto', objectFit: 'contain' }}
+          />
+          {/* <CIcon customClassName="sidebar-brand-narrow" icon={sygnet} height={32} /> */}
+        {/* </CSidebarBrand> */}
+        {/* <CCloseButton
           className="d-lg-none"
           dark={resolvedColorScheme === 'dark'}
           onClick={() => dispatch({ type: 'set', sidebarShow: false })}
-        />
+        /> */}
       </CSidebarHeader>
       <AppSidebarNav items={navigation} />
       <CSidebarFooter className="border-top d-none d-lg-flex">

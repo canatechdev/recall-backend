@@ -70,7 +70,7 @@ const AppHeader = () => {
       position="sticky"
       className="mb-4 p-0"
       ref={headerRef}
-      colorScheme={resolvedHeaderScheme}
+      colorscheme={resolvedHeaderScheme}
     >
       <CContainer className="border-bottom px-4" fluid>
         <CHeaderToggler

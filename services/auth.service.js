@@ -34,7 +34,7 @@ exports.verifyOTP = async (data) => {
     }
 
     first_name = data.name ? data.name : "User" + Math.floor(Math.random() * 1000);
-    console.log(otpRecord, "OTP RECORD")
+    // console.log(otpRecord, "OTP RECORD")
     // Check expiry (10 minutes)
     const createdAt = new Date(otpRecord.created_at);
     const now = new Date();
@@ -205,19 +205,18 @@ exports.registerUser = async (data) => {
 exports.loginUser = async (data) => {
     // console.log(req.body);throw Error('ERROR SARTHAK')
     const { email, password } = data;
-
     if (!email || !password) {
         throw { status: 400, message: "Email and password required" };
     }
 
     try {
         const userResult = await pool.query(
-            `SELECT u.id, up.first_name name, u.email, array_agg(r.name) AS roles, u.password, u.status FROM users u 
+            `SELECT u.id, up.first_name name, up.avatar_url, u.email, array_agg(r.name) AS roles, u.password, u.status FROM users u 
             JOIN user_profile up ON u.id=up.user_id
             JOIN user_roles ur ON u.id=ur.user_id
             JOIN roles r ON ur.role_id=r.id
             WHERE u.email = $1
-            GROUP BY u.id, up.first_name,u.email, u.password, u.status
+            GROUP BY u.id, up.first_name, up.avatar_url, u.email, u.password, u.status
             `,
             [email],
         );
@@ -233,11 +232,12 @@ exports.loginUser = async (data) => {
         }
 
         const isMatch = await bcrypt.compare(password, user.password);
-        // const isMatch = password == user.password;
+        
         if (!isMatch) {
             throw { status: 401, message: "Invalid credentials" };
         }
-        res_user={ id: user.id, email: user.email, name: user.name, role: user.role };
+
+        const res_user = { id: user.id, email: user.email, name: user.name, roles: user.roles, avatar_url: user.avatar_url || null };
         const accessToken = jwt.sign(
             { userId: user.id, email: user.email, roles: user.roles },
             process.env.JWT_ACCESS_SECRET,
@@ -267,8 +267,28 @@ exports.loginUser = async (data) => {
     }
 };
 
+exports.getMe = async (userPayload) => {
+    const userId = userPayload?.userId;
+    if (!userId) throw { status: 401, message: 'Invalid session' };
+
+    const result = await pool.query(
+        `SELECT u.id, u.email, u.phone, u.status, u.is_verified,
+                up.first_name, up.last_name, up.avatar_url,
+                array_remove(array_agg(DISTINCT r.name ORDER BY r.name), NULL) AS roles
+         FROM users u
+         LEFT JOIN user_profile up ON u.id = up.user_id
+         LEFT JOIN user_roles ur ON u.id = ur.user_id
+         LEFT JOIN roles r ON ur.role_id = r.id
+         WHERE u.id = $1
+         GROUP BY u.id, u.email, u.phone, u.status, u.is_verified, up.first_name, up.last_name, up.avatar_url`,
+        [userId],
+    );
+    if (result.rowCount === 0) throw { status: 404, message: 'User not found' };
+    return result.rows[0];
+}
+
 exports.refreshToken = async (cookies) => {
-    console.log( "REFRESH TOKEN RESULT")
+    console.log("REFRESH TOKEN RESULT")
     // console.log(req.cookies)
     const { refreshToken } = cookies;
 

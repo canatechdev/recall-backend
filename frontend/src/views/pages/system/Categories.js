@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { CButton, CFormInput, CFormSelect } from '@coreui/react'
-import { delete_category, get_categories, toggle_category, create_category, update_category } from '../../../api/system_service'
+import { delete_category, get_categories, create_category, update_category } from '../../../api/system_service'
 import CIcon from '@coreui/icons-react'
 import { cilPlus, cilNoteAdd, cilX } from '@coreui/icons'
 import ThemedTablePage from 'src/components/ThemedTablePage'
@@ -17,7 +17,6 @@ const Categories = () => {
     const [url, setUrl] = useState('')
 
     const [query, setQuery] = useState('')
-    const [statusFilter, setStatusFilter] = useState('all') // all | enabled | suspended
     const toggleCategory = () => {
         setIsCategory(!isCategory);
         setIsEdit(false);
@@ -106,26 +105,6 @@ const Categories = () => {
         }
     };
 
-
-    const toggleCategoryStatus = async (id, currentStatus) => {
-        if (!id) return;
-        const action = currentStatus === true ? 'Suspend' : 'Enable';
-        if (confirm(`${action} this category?`)) {
-            try {
-                if (action === 'Suspend') {
-                    await toggle_category(id, false);
-                    showToast("success", "Category Suspended");
-                } else {
-                    await toggle_category(id, true);
-                    showToast("info", "Enable functionality to be implemented.");
-                }
-                fetchCategories();
-            } catch (err) {
-                showToast("danger", err.response?.data?.message || `Failed to ${action.toLowerCase()} category.`);
-            }
-        }
-    }
-
     const deleteCategory = async (id) => {
         if (!id) return
         if (!confirm('Delete this category?')) return
@@ -147,15 +126,10 @@ const Categories = () => {
         const q = query.trim().toLowerCase()
         return categories
             .filter((c) => {
-                if (statusFilter === 'enabled') return c.status === true
-                if (statusFilter === 'suspended') return c.status === false
-                return true
-            })
-            .filter((c) => {
                 if (!q) return true
                 return String(c.name || '').toLowerCase().includes(q)
             })
-    }, [categories, query, statusFilter])
+    }, [categories, query])
 
     const rows = filteredCategories.map((c, idx) => ({ ...c, _idx: idx + 1 }))
 
@@ -187,12 +161,6 @@ const Categories = () => {
                     <button onClick={() => editCategory(r)} className="btn btn-sm btn-outline-success">
                         Edit
                     </button>
-                    <button
-                        onClick={() => toggleCategoryStatus(r.id, r.status)}
-                        className={`btn btn-sm btn-outline-${r.status === true ? 'danger' : 'info'}`}
-                    >
-                        {r.status === true ? 'Suspend' : 'Enable'}
-                    </button>
                     <button onClick={() => deleteCategory(r.id)} className="btn btn-sm btn-outline-danger">
                         Delete
                     </button>
@@ -213,26 +181,12 @@ const Categories = () => {
                 />
             </div>
 
-            <div>
-                <div className="small text-medium-emphasis mb-1">Status</div>
-                <CFormSelect
-                    size="sm"
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                >
-                    <option value="all">All</option>
-                    <option value="enabled">Enabled</option>
-                    <option value="suspended">Suspended</option>
-                </CFormSelect>
-            </div>
-
             <div className="d-flex justify-content-end gap-2 pt-1">
                 <CButton
                     size="sm"
                     color="light"
                     onClick={() => {
                         setQuery('')
-                        setStatusFilter('all')
                     }}
                 >
                     Reset

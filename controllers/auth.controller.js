@@ -36,12 +36,17 @@ exports.login = async (req, res) => {
     sameSite: "strict",
     maxAge: 15 * 24 * 60 * 60 * 1000 // 15 days
   })
-  res.status(200).json({ "accessToken": result.accessToken, "user": result.user });
+  res.status(200).json({ accessToken: result.accessToken, refreshToken: result.refreshToken, user: result.res_user });
 };
 
 exports.refresh = async (req, res) => {
   const result = await authService.refreshToken(req.cookies);
   res.status(200).json(result);
+}
+
+exports.me = async (req, res) => {
+  const result = await authService.getMe(req.user);
+  res.status(200).json({ user: result });
 }
 
 exports.logout = async (req, res) => {

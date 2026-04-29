@@ -7,7 +7,7 @@ import {
 } from "@coreui/icons";
 import {
     get_sell_questions, create_sell_question, update_sell_question, delete_sell_question,
-    create_question_option, delete_question_option,
+    create_question_option, update_question_option, delete_question_option,
     get_question_conditions, create_question_condition, delete_question_condition,
     get_categories, map_question_to_category, unmap_question_from_category
 } from "../../../api/system_service";
@@ -83,6 +83,8 @@ export default function SellQuestions() {
     // Options â€” shared add form; keyed by expanded question
     const [newOpt, setNewOpt] = useState({ text: "", price_deduction: 0 });
     const [savingOpt, setSavingOpt] = useState(false);
+    const [optDeductionDraft, setOptDeductionDraft] = useState({});
+    const [savingDeductionId, setSavingDeductionId] = useState(null);
 
     // Condition add form
     const [newCond, setNewCond] = useState({ trigger_option_id: "", show_question_id: "" });
@@ -221,17 +223,7 @@ export default function SellQuestions() {
             const nextSortIndex = (questions.length > 0
                 ? Math.max(...questions.map(q => q.sort_index))
                 : 0) + 1;
-            const res = await create_sell_question(buildQuestionPayload(newQ, nextSortIndex));
-            // Auto-create readonly Yes / No options so conditions can be wired immediately
-            if (newQ.input_type === "yes_no") {
-                const newQId = res.data?.id;
-                if (newQId) {
-                    await Promise.all([
-                        create_question_option({ question_id: newQId, text: "Yes", price_deduction: 0, sort_index: 1 }),
-                        create_question_option({ question_id: newQId, text: "No", price_deduction: 0, sort_index: 2 }),
-                    ]);
-                }
-            }
+            await create_sell_question(buildQuestionPayload(newQ, nextSortIndex));
             setShowAdd(false);
             setNewQ({ text: "", description: "", input_type: "yes_no", category_slugs: [] });
             fetchQuestions();
@@ -239,6 +231,21 @@ export default function SellQuestions() {
             console.error(e?.response?.data?.message || "Failed to create question");
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleUpdateOptionDeduction = async (opt) => {
+        if (!opt?.id) return;
+        try {
+            setSavingDeductionId(String(opt.id));
+            const raw = optDeductionDraft[String(opt.id)];
+            const pct = Math.min(100, Math.max(0, parseFloat(raw) || 0));
+            await update_question_option(opt.id, { price_deduction: pct });
+            fetchQuestions();
+        } catch (e) {
+            console.error(e?.response?.data?.message || "Failed to update deduction");
+        } finally {
+            setSavingDeductionId(null);
         }
     };
 
@@ -286,6 +293,12 @@ export default function SellQuestions() {
             setEditingId(null);
             setNewOpt({ text: "", price_deduction: 0 });
             setNewCond({ trigger_option_id: "", show_question_id: "" });
+            // Prime drafts for option deductions
+            const nextDrafts = {};
+            (getEffectiveOptions(q) ?? []).forEach(o => {
+                if (o?.id) nextDrafts[String(o.id)] = Number(o.price_deduction ?? 0);
+            });
+            setOptDeductionDraft(nextDrafts);
         }
     };
 
@@ -813,6 +826,12 @@ export default function SellQuestions() {
                                                         const showsQs = (o.show ?? []).map(sid =>
                                                             questions.find(oq => String(oq.id) === String(sid))
                                                         ).filter(Boolean);
+                                                        const isYesNo = q.input_type === "yes_no";
+                                                        const canEditDeduction = !!o.id;
+                                                        const draftKey = String(o.id ?? "");
+                                                        const draftVal = canEditDeduction
+                                                            ? (optDeductionDraft[draftKey] ?? o.price_deduction ?? 0)
+                                                            : (o.price_deduction ?? 0);
                                                         return (
                                                             <tr key={o.id ?? `syn-${idx}`} className={o._synthetic ? "table-secondary" : ""}>
                                                                 <td className="text-muted small text-center">{o.sort_index}</td>
@@ -823,7 +842,38 @@ export default function SellQuestions() {
                                                                     )}
                                                                 </td>
                                                                 <td className="text-danger">
-                                                                    {o.price_deduction > 0 ? `${Number(o.price_deduction).toLocaleString()}` : "0"}&#37;
+                                                                    {isYesNo ? (
+                                                                        <div className="d-flex align-items-center gap-1">
+                                                                            <input
+                                                                                type="number"
+                                                                                className="form-control form-control-sm"
+                                                                                style={{ maxWidth: 95 }}
+                                                                                min="0"
+                                                                                max="100"
+                                                                                step="0.01"
+                                                                                disabled={!canEditDeduction}
+                                                                                value={draftVal}
+                                                                                onChange={e => {
+                                                                                    if (!canEditDeduction) return;
+                                                                                    setOptDeductionDraft(p => ({ ...p, [draftKey]: e.target.value }));
+                                                                                }}
+                                                                            />
+                                                                            <span className="small text-muted">&#37;</span>
+                                                                            <button
+                                                                                type="button"
+                                                                                className="btn btn-sm btn-outline-success p-0 px-1"
+                                                                                disabled={!canEditDeduction || savingDeductionId === draftKey}
+                                                                                onClick={() => handleUpdateOptionDeduction(o)}
+                                                                                title="Save deduction"
+                                                                            >
+                                                                                <CIcon icon={cilCheck} style={{ width: 14, height: 14 }} />
+                                                                            </button>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <>
+                                                                            {o.price_deduction > 0 ? `${Number(o.price_deduction).toLocaleString()}` : "0"}&#37;
+                                                                        </>
+                                                                    )}
                                                                 </td>
                                                                 <td>
                                                                     {showsQs.length > 0

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { createFaq, deleteFaq, getFaqs, toggleFaqStatus, updateFaq } from '../../../api/faq.api'
+import { createFaq, deleteFaq, getFaqs, updateFaq } from '../../../api/faq.api'
 import Swal from 'sweetalert2'
 import ThemedTablePage from 'src/components/ThemedTablePage'
 
@@ -16,7 +16,6 @@ const HomeFaqs = () => {
   const [currentPage, setCurrentPage] = useState(1)
   const faqsPerPage = 10
   const [query, setQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
 
   const loadFaqs = async () => {
     try {
@@ -112,29 +111,6 @@ const HomeFaqs = () => {
     else createFaqHandler()
   }
 
-  // TOGGLE STATUS
-  const handleToggle = async (faq) => {
-    try {
-      const action = faq.status ? 'Suspend' : 'Enable'
-      const res = await Swal.fire({
-        title: `${action} FAQ?`,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: action,
-        cancelButtonText: 'Cancel',
-      })
-
-      if (!res.isConfirmed) return
-
-      const newStatus = !faq.status
-      await toggleFaqStatus(faq.id, newStatus)
-      setFaqs((prev) => prev.map((f) => (f.id === faq.id ? { ...f, status: newStatus } : f)))
-    } catch (err) {
-      console.error(err)
-      Swal.fire('Error', 'Failed to update status', 'error')
-    }
-  }
-
   const handleDelete = async (faq) => {
     try {
       if (!faq?.id) return
@@ -164,15 +140,10 @@ const HomeFaqs = () => {
     const q = query.trim().toLowerCase()
     return faqs
       .filter((f) => {
-        if (statusFilter === 'enabled') return Boolean(f.status) === true
-        if (statusFilter === 'suspended') return Boolean(f.status) === false
-        return true
-      })
-      .filter((f) => {
         if (!q) return true
         return String(f?.question || '').toLowerCase().includes(q)
       })
-  }, [faqs, query, statusFilter])
+  }, [faqs, query])
 
   // PAGINATION
   const indexOfLast = currentPage * faqsPerPage
@@ -187,25 +158,12 @@ const HomeFaqs = () => {
     { key: '_rowIndex', label: 'Sr No', render: (f) => f._rowIndex, headerStyle: { width: 80 } },
     { key: 'question', label: 'Question', render: (f) => f.question },
     {
-      key: 'status',
-      label: 'Status',
-      headerClassName: 'text-center',
-      cellClassName: 'text-center',
-      render: (f) => (Boolean(f.status) ? 'Enabled' : 'Suspended'),
-    },
-    {
       key: 'action',
       label: 'Action',
       render: (f) => (
         <div className="d-flex justify-content-center gap-2 flex-wrap">
           <button className="btn btn-sm btn-outline-success" onClick={() => editFaq(f)}>
             Edit
-          </button>
-          <button
-            className={`btn btn-sm btn-outline-${Boolean(f.status) ? 'danger' : 'info'}`}
-            onClick={() => handleToggle(f)}
-          >
-            {Boolean(f.status) ? 'Suspend' : 'Enable'}
           </button>
           <button className="btn btn-sm btn-outline-danger" onClick={() => handleDelete(f)}>
             Delete
@@ -231,30 +189,14 @@ const HomeFaqs = () => {
           }}
         />
       </div>
-      <div>
-        <div className="small text-medium-emphasis mb-1">Status</div>
-        <select
-          className="form-select form-select-sm"
-          value={statusFilter}
-          onChange={(e) => {
-            setStatusFilter(e.target.value)
-            setCurrentPage(1)
-          }}
-        >
-          <option value="all">All</option>
-          <option value="enabled">Enabled</option>
-          <option value="suspended">Suspended</option>
-        </select>
-      </div>
       <button
         type="button"
         className="btn btn-sm btn-outline-secondary"
         onClick={() => {
           setQuery('')
-          setStatusFilter('all')
           setCurrentPage(1)
         }}
-        disabled={!query && statusFilter === 'all'}
+        disabled={!query}
       >
         Reset
       </button>

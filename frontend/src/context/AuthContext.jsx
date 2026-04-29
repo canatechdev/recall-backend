@@ -26,7 +26,7 @@ export const AuthProvider = ({ children }) => {
     if (refreshToken) {
       setRefreshToken(refreshToken)
     }
-    setUser(res?.data?.res_user || res?.data?.user || null)
+    setUser(res?.data?.user || res?.data?.res_user || null)
     return res
   }
 
@@ -58,6 +58,12 @@ export const AuthProvider = ({ children }) => {
       try {
         // If accessToken exists, consider session active; otherwise try refresh via httpOnly refreshToken.
         if (getCookie('accessToken')) {
+          try {
+            const meRes = await authApi.me()
+            setUser(meRes?.data?.user ?? null)
+          } catch {
+            // token may be invalid; let caller proceed and global 401 handler will redirect if needed
+          }
           setLoading(false)
           return
         }
@@ -76,6 +82,15 @@ export const AuthProvider = ({ children }) => {
         }
         if (newRefreshToken) {
           setRefreshToken(newRefreshToken)
+        }
+
+        if (token) {
+          try {
+            const meRes = await authApi.me()
+            setUser(meRes?.data?.user ?? null)
+          } catch {
+            // ignore
+          }
         }
       } catch {
         // no session

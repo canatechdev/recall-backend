@@ -12,8 +12,8 @@ exports.getUsers = async (params = {}) => {
         values.push(id);
         whquery += ` AND u.id=$${values.length}`;
     }
-    const data = await pool.query(`
-        SELECT u.id, up.first_name, up.last_name, u.email, u.phone, u.status,
+    const data = await pool.query(`     
+        SELECT u.id, up.first_name, up.last_name, up.avatar_url, u.email, u.phone, u.status,
                STRING_AGG(DISTINCT r.name, ', ' ORDER BY r.name) AS roles,
                BOOL_OR(r.name = 'merchant') AS is_merchant
         FROM users u
@@ -21,7 +21,7 @@ exports.getUsers = async (params = {}) => {
         LEFT JOIN user_roles ur ON u.id = ur.user_id
         LEFT JOIN roles r ON ur.role_id = r.id
         ${whquery}
-        GROUP BY u.id, up.first_name, up.last_name, u.email, u.phone, u.status
+        GROUP BY u.id, up.first_name, up.last_name, up.avatar_url, u.email, u.phone, u.status
         ORDER BY u.id DESC
     `, values);
     return data.rows;
@@ -96,16 +96,6 @@ exports.removeMerchantRole = async (user_id) => {
     );
     if (result.rowCount === 0) throw { status: 404, message: "User is not a merchant" };
     return { user_id };
-};
-
-exports.updateUserStatus = async (user_id, status) => {
-    if (![1, 2].includes(parseInt(status))) throw { status: 400, message: "Invalid status. Use 1 (active) or 2 (suspended)" };
-    const result = await pool.query(
-        `UPDATE users SET status=$1, updated_at=NOW() WHERE id=$2 RETURNING id, status`,
-        [parseInt(status), user_id]
-    );
-    if (result.rowCount === 0) throw { status: 404, message: "User not found" };
-    return result.rows[0];
 };
 
 exports.updateUser = async (id, data) => {

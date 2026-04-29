@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import { useAuth } from 'src/context/AuthContext'
 import {
   CAvatar,
@@ -26,12 +26,19 @@ import CIcon from '@coreui/icons-react'
 import avatar8 from './../../assets/images/avatars/7.jpg'
 
 const AppHeaderDropdown = () => {
-  const { logout } = useAuth()
+  const { user, logout } = useAuth()
+
+  const avatarSrc = useMemo(() => {
+    const fileName = user?.avatar_url
+    if (!fileName) return null
+    const base = (import.meta.env.VITE_API_URL || 'http://localhost:5500/').replace(/\/+$/, '')
+    return `${base}/uploads/${fileName}`
+  }, [user])
 
   return (
     <CDropdown variant="nav-item">
       <CDropdownToggle placement="bottom-end" className="py-0 pe-0" caret={false}>
-        <CAvatar src={avatar8} size="md" />
+        <CAvatar src={avatarSrc || avatar8} size="md" />
         {/* <CIcon icon={cilUser} className="mt-2" /> */}
       </CDropdownToggle>
       <CDropdownMenu className="pt-0" placement="bottom-end">

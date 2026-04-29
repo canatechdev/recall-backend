@@ -2,14 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CAvatar, CBadge, CButton, CFormInput, CFormSelect } from '@coreui/react'
 import CIcon from '@coreui/icons-react'
-import { cilTrash, cilCheck, cilX, cilShieldAlt, cilPlus } from '@coreui/icons'
+import { cilTrash, cilShieldAlt, cilPlus } from '@coreui/icons'
 
 import {
     add_merchant_role,
     delete_user,
     get_users,
     remove_merchant_role,
-    update_user_status,
 } from 'src/api/system_service'
 import ThemedTablePage from 'src/components/ThemedTablePage'
 
@@ -17,7 +16,7 @@ import { downloadCsv } from 'src/utils/csv'
 
 const STATUS_LABELS = {
     1: { label: 'Active', badge: 'success' },
-    2: { label: 'Suspended', badge: 'warning' },
+    2: { label: 'Inactive', badge: 'warning' },
     3: { label: 'Deleted', badge: 'danger' },
 }
 
@@ -102,19 +101,6 @@ const Users = () => {
         }
     }
 
-    const handleStatusToggle = async (u) => {
-        const newStatus = u.status === 1 ? 2 : 1
-        const action = newStatus === 1 ? 'Activate' : 'Suspend'
-        if (!window.confirm(`${action} user \"${u.email}\"?`)) return
-        try {
-            await update_user_status(u.id, newStatus)
-            showToast('success', `User ${newStatus === 1 ? 'activated' : 'suspended'}`)
-            fetchUsers()
-        } catch (e) {
-            showToast('danger', e.response?.data?.message || 'Failed to update status')
-        }
-    }
-
     const filteredUsers = useMemo(() => {
         const q = query.trim().toLowerCase()
 
@@ -159,7 +145,7 @@ const Users = () => {
                 const statusInfo = STATUS_LABELS[u.status] || { badge: 'secondary' }
                 return (
                     <div className="d-flex align-items-center">
-                        <CAvatar size="md" src={`https://i.pravatar.cc/150?u=${u.id}`} status={statusInfo.badge} />
+                        <CAvatar size="md" src={`${import.meta.env.VITE_API_URL+"uploads/" + u.avatar_url}`} status={statusInfo.badge} />
                         <div className="ms-3">
                             <div className="fw-semibold">{safeName(u)}</div>
                             <div className="small text-medium-emphasis">{u.email}</div>
@@ -215,16 +201,6 @@ const Users = () => {
 
                     <CButton
                         size="sm"
-                        color={u.status === 1 ? 'warning' : 'success'}
-                        variant="outline"
-                        onClick={() => handleStatusToggle(u)}
-                        title={u.status === 1 ? 'Suspend user' : 'Activate user'}
-                    >
-                        <CIcon icon={u.status === 1 ? cilX : cilCheck} />
-                    </CButton>
-
-                    <CButton
-                        size="sm"
                         color="danger"
                         variant="outline"
                         onClick={() => handleDelete(u)}
@@ -264,7 +240,6 @@ const Users = () => {
                 >
                     <option value="all">All</option>
                     <option value="1">Active</option>
-                    <option value="2">Suspended</option>
                     <option value="3">Deleted</option>
                 </CFormSelect>
             </div>

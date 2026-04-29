@@ -92,6 +92,23 @@ exports.toggleBrand = async (req, res) => {
     res.status(200).json(data);
 }
 
+// ── Brands Excel ─────────────────────────────────────────
+exports.downloadBrandsTemplate = async (req, res) => {
+    const { buffer, fileName } = await systemService.getBrandsImportTemplate();
+    res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.status(200).send(buffer);
+}
+
+exports.importBrandsExcel = async (req, res) => {
+    if (!req.file?.buffer) throw { status: 400, message: 'Excel file is required (field: file)' };
+    const data = await systemService.importBrandsFromExcel(req.file.buffer);
+    res.status(200).json(data);
+}
+
 exports.getRoles = async (req, res) => {
     const data = await systemService.getRoles();
     res.status(200).json(data);

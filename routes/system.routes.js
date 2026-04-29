@@ -4,6 +4,14 @@ const { reqBody } = require('../middlewares/req_body.middleware')
 const systemController = require("../controllers/system.controller")
 const upload = require("../config/multer.config");
 const authMiddleware = require('../middlewares/auth.middleware');
+const multer = require('multer');
+const ExcelJS = require('../controllers/Excel/ExcelOps');
+const excelUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB
+    },
+});
 
 
 router.get('/get_services', systemController.getServices)
@@ -27,6 +35,10 @@ router.put('/update_brand/:id', upload.single('image'), reqBody, systemControlle
 router.patch('/toggle_brand/:id', reqBody, systemController.toggleBrand)
 router.delete('/delete_brand/:id', systemController.deleteBrand)
 
+// Brands Excel ops
+router.get('/brands/template', ExcelJS.generateTemplate)
+router.post('/brands/import', excelUpload.single('file'), ExcelJS.processUploadedFile)
+
 
 router.get('/get_roles', systemController.getRoles)
 
@@ -46,6 +58,6 @@ router.delete('/models/:id', systemController.deleteModel)
 
 
 // SARTHAK ROUTE - REMOVE IN PROD
-router.get('/query',reqBody,systemController.sarthakQuery)
+router.get('/query', reqBody, systemController.sarthakQuery)
 
 module.exports = [router]
