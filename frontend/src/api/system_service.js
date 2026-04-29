@@ -67,6 +67,24 @@ export const import_brands_excel = (formData) => {
     return api.post('api/system/brands/import', formData)
 }
 
+// ── Series Excel ───────────────────────────────────────
+export const download_series_template = () => {
+    return api.get('api/system/series/template', { responseType: 'blob' })
+}
+
+export const import_series_excel = (formData) => {
+    return api.post('api/system/series/import', formData)
+}
+
+// ── Models Excel ───────────────────────────────────────
+export const download_models_template = (params) => {
+    return api.get('api/system/models/template', { responseType: 'blob', params })
+}
+
+export const import_models_excel = (formData) => {
+    return api.post('api/system/models/import', formData)
+}
+
 
 export const create_product = () => {
     return api.get('api/system/create_product')

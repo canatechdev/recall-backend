@@ -757,8 +757,8 @@ exports.getModels = async ({ cat_slug, brand_slug, series_slug }) => {
         JOIN categories c ON m.category_id=c.id
         JOIN brands b ON m.brand_id=b.id
         JOIN model_series ms ON m.series_id=ms.id
-        JOIN model_images mi ON m.id=mi.model_id
-        JOIN images img ON mi.image_id=img.id
+        LEFT JOIN model_images mi ON m.id=mi.model_id
+        LEFT JOIN images img ON mi.image_id=img.id
         WHERE c.slug=$1 AND b.slug=$2 AND ms.slug=$3`, [cat_slug, brand_slug, series_slug]);
     return data.rows;
 }

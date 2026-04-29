@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
     get_cat_brands,
     create_brand,
@@ -9,7 +9,7 @@ import {
     import_brands_excel,
 } from "src/api/system_service"
 import CIcon from '@coreui/icons-react'
-import { cilNoteAdd, cilPlus, cilX } from '@coreui/icons'
+import { cilCloudDownload, cilCloudUpload, cilFolderOpen, cilNoteAdd, cilPlus, cilX } from '@coreui/icons'
 import ThemedTablePage from 'src/components/ThemedTablePage'
 
 const Brands = () => {
@@ -29,6 +29,7 @@ const Brands = () => {
 
     const [importFile, setImportFile] = useState(null)
     const [importLoading, setImportLoading] = useState(false)
+    const importInputRef = useRef(null)
 
     const showToast = (type, msg) => {
         setToast({ type, msg })
@@ -45,13 +46,12 @@ const Brands = () => {
     }
 
     const editBrand = ({ id, name, url }) => {
-        alert(id)
         if (!id || !name || !url) return showToast('danger', 'Invalid Brand')
         setIsBrand(true)
         setIsEdit(true)
         setEditId(id)
         setName(name)
-        setUrl(url)
+        if (url) setUrl(url)
         setFile(null)
     }
 
@@ -111,12 +111,14 @@ const Brands = () => {
             formData.append('file', importFile)
             const res = await import_brands_excel(formData)
 
-            const { inserted = 0, linked = 0, skipped = 0, errors = [] } = res?.data || {}
-            const errCount = Array.isArray(errors) ? errors.length : 0
-            showToast('success', `Imported: ${inserted}, Linked: ${linked}, Skipped: ${skipped}, Errors: ${errCount}`)
-            if (errCount) console.error('Brand import errors:', errors)
+            const insertedCount = res?.data?.data?.inserted_count ?? 0
+            const failedCount = res?.data?.data?.failed_count ?? 0
+            const failed = res?.data?.data?.failed ?? []
+            showToast('success', `Imported: ${insertedCount}, Failed: ${failedCount}`)
+            if (failedCount) console.error('Brand import failures:', failed)
 
             setImportFile(null)
+            if (importInputRef.current) importInputRef.current.value = ''
             fetchBrands(category)
         } catch (err) {
             showToast('danger', err.response?.data?.message || 'Failed to import brands.')
@@ -282,25 +284,41 @@ const Brands = () => {
                 </h4>
 
                 <div className="d-flex align-items-center gap-2 flex-wrap">
-                    <button type="button" className="btn btn-sm btn-outline-secondary" onClick={downloadTemplate}>
-                        Download Template
+                    <button
+                        type="button"
+                        className="btn btn-sm btn-outline-secondary"
+                        onClick={downloadTemplate}
+                        title="Download Excel template"
+                    >
+                        <CIcon icon={cilCloudDownload} />
                     </button>
 
                     <input
+                        ref={importInputRef}
                         type="file"
-                        className="form-control form-control-sm"
-                        style={{ maxWidth: 240 }}
+                        className="d-none"
                         accept=".xlsx,.xls"
                         onChange={(e) => setImportFile(e.target.files?.[0] || null)}
                     />
 
                     <button
                         type="button"
+                        className="btn btn-sm btn-outline-secondary"
+                        onClick={() => importInputRef.current?.click()}
+                        title={importFile ? `Selected: ${importFile.name}` : 'Choose Excel file'}
+                        disabled={importLoading}
+                    >
+                        <CIcon icon={cilFolderOpen} />
+                    </button>
+
+                    <button
+                        type="button"
                         className="btn btn-sm btn-outline-primary"
                         onClick={importExcelHandler}
                         disabled={!importFile || importLoading}
+                        title={importLoading ? 'Importing…' : 'Import Excel'}
                     >
-                        {importLoading ? 'Importing...' : 'Import Excel'}
+                        <CIcon icon={cilCloudUpload} />
                     </button>
                 </div>
             </div>

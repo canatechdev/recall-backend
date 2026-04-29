@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { CIcon } from "@coreui/icons-react";
 import {
     cilPlus,
@@ -6,6 +6,9 @@ import {
     cilCheck,
     cilPencil,
     cilTrash,
+    cilCloudDownload,
+    cilCloudUpload,
+    cilFolderOpen,
     cilChevronRight,
     cilReload,
     cilTag,
@@ -15,7 +18,7 @@ import {
     cilSettings,
     cilList,
 } from "@coreui/icons";
-import { get_categories, get_cat_brands, get_brand_series, create_series, update_series, delete_series, get_models, create_model, update_model, delete_model, get_model_configs, create_model_config, update_model_config, delete_model_config } from "../../../api/system_service";
+import { get_categories, get_cat_brands, get_brand_series, create_series, update_series, delete_series, get_models, create_model, update_model, delete_model, get_model_configs, create_model_config, update_model_config, delete_model_config, download_series_template, import_series_excel, download_models_template, import_models_excel } from "../../../api/system_service";
 
 // const BASE = "http://localhost:5500";
 
@@ -143,6 +146,14 @@ export default function BrandModelManager() {
     const [loadingSeries, setLoadingSeries] = useState(false);
     const [loadingModels, setLoadingModels] = useState(false);
     const [saving, setSaving] = useState(false);
+
+    const [seriesImportFile, setSeriesImportFile] = useState(null);
+    const [seriesImportLoading, setSeriesImportLoading] = useState(false);
+    const seriesImportInputRef = useRef(null);
+
+    const [modelsImportFile, setModelsImportFile] = useState(null);
+    const [modelsImportLoading, setModelsImportLoading] = useState(false);
+    const modelsImportInputRef = useRef(null);
 
     // Add form visibility
     const [showAddSeries, setShowAddSeries] = useState(false);
@@ -287,6 +298,108 @@ export default function BrandModelManager() {
         }
     }
 
+    const downloadSeriesTemplate = async () => {
+        try {
+            const res = await download_series_template();
+            const blob = new Blob([res.data], {
+                type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "series_import_template.xlsx";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            showToast("danger", err.response?.data?.message || "Failed to download series template.");
+        }
+    };
+
+    const importSeriesExcelHandler = async () => {
+        if (!selectedBrand?.slug) return showToast("danger", "Select a brand first.");
+        if (!seriesImportFile) return showToast("danger", "Please choose an Excel file to import.");
+        if (!confirm("Import series from this Excel file?")) return;
+
+        try {
+            setSeriesImportLoading(true);
+            const formData = new FormData();
+            formData.append("file", seriesImportFile);
+            const res = await import_series_excel(formData);
+
+            const insertedCount = res?.data?.data?.inserted_count ?? 0;
+            const failedCount = res?.data?.data?.failed_count ?? 0;
+            const failed = res?.data?.data?.failed ?? [];
+
+            showToast("success", `Imported: ${insertedCount}, Failed: ${failedCount}`);
+            if (failedCount) console.error("Series import failures:", failed);
+
+            setSeriesImportFile(null);
+            if (seriesImportInputRef.current) seriesImportInputRef.current.value = "";
+            fetchSeries(selectedBrand.slug);
+        } catch (err) {
+            showToast("danger", err.response?.data?.message || "Failed to import series.");
+        } finally {
+            setSeriesImportLoading(false);
+        }
+    };
+
+    const downloadModelsTemplate = async () => {
+        try {
+            const res = await download_models_template({
+                category_slug: selectedCategory?.slug,
+                brand_slug: selectedBrand?.slug,
+                series_slug: selectedSeries?.slug,
+            });
+            const blob = new Blob([res.data], {
+                type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "models_import_template.xlsx";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            showToast("danger", err.response?.data?.message || "Failed to download models template.");
+        }
+    };
+
+    const importModelsExcelHandler = async () => {
+        if (!selectedCategory?.slug || !selectedBrand?.slug || !selectedSeries?.slug) {
+            return showToast("danger", "Select category, brand and series first.");
+        }
+        if (!modelsImportFile) return showToast("danger", "Please choose an Excel file to import.");
+        if (!confirm("Import models from this Excel file?")) return;
+
+        try {
+            setModelsImportLoading(true);
+            const formData = new FormData();
+            formData.append("file", modelsImportFile);
+            formData.append("category_slug", selectedCategory.slug);
+            formData.append("brand_slug", selectedBrand.slug);
+            formData.append("series_slug", selectedSeries.slug);
+            const res = await import_models_excel(formData);
+
+            const insertedCount = res?.data?.data?.inserted_count ?? 0;
+            const failedCount = res?.data?.data?.failed_count ?? 0;
+            const failed = res?.data?.data?.failed ?? [];
+            showToast("success", `Imported: ${insertedCount}, Failed: ${failedCount}`);
+            if (failedCount) console.error("Models import failures:", failed);
+
+            setModelsImportFile(null);
+            if (modelsImportInputRef.current) modelsImportInputRef.current.value = "";
+            fetchModels(selectedSeries.slug);
+        } catch (err) {
+            showToast("danger", err.response?.data?.message || "Failed to import models.");
+        } finally {
+            setModelsImportLoading(false);
+        }
+    };
+
     const saveModel = async (vals) => {
         try {
             setSaving(true);
@@ -407,7 +520,41 @@ export default function BrandModelManager() {
                     {/* ── PANEL 2 — Series ── */}
                     {activePanel === 2 && (
                         <div>
-                            <div className="d-flex justify-content-end mb-3">
+                            <div className="d-flex justify-content-end mb-3 gap-2 flex-wrap">
+                                <button
+                                    className="btn btn-sm btn-outline-secondary"
+                                    onClick={downloadSeriesTemplate}
+                                    title="Download series Excel template"
+                                >
+                                    <CIcon icon={cilCloudDownload} />
+                                </button>
+
+                                <input
+                                    ref={seriesImportInputRef}
+                                    type="file"
+                                    className="d-none"
+                                    accept=".xlsx,.xls"
+                                    onChange={(e) => setSeriesImportFile(e.target.files?.[0] || null)}
+                                />
+
+                                <button
+                                    className="btn btn-sm btn-outline-secondary"
+                                    onClick={() => seriesImportInputRef.current?.click()}
+                                    title={seriesImportFile ? `Selected: ${seriesImportFile.name}` : "Choose Excel file"}
+                                    disabled={seriesImportLoading}
+                                >
+                                    <CIcon icon={cilFolderOpen} />
+                                </button>
+
+                                <button
+                                    className="btn btn-sm btn-outline-primary"
+                                    onClick={importSeriesExcelHandler}
+                                    disabled={!seriesImportFile || seriesImportLoading}
+                                    title={seriesImportLoading ? "Importing…" : "Import series from Excel"}
+                                >
+                                    <CIcon icon={cilCloudUpload} />
+                                </button>
+
                                 <button
                                     className="btn btn-sm btn-outline-primary"
                                     onClick={() => { setShowAddSeries((p) => !p); setEditingSeries(null); }}
@@ -471,7 +618,41 @@ export default function BrandModelManager() {
                     {/* ── PANEL 3 — Models ── */}
                     {activePanel === 3 && (
                         <div>
-                            <div className="d-flex justify-content-end mb-3">
+                            <div className="d-flex justify-content-end mb-3 gap-2 flex-wrap">
+                                <button
+                                    className="btn btn-sm btn-outline-secondary"
+                                    onClick={downloadModelsTemplate}
+                                    title="Download models Excel template"
+                                >
+                                    <CIcon icon={cilCloudDownload} />
+                                </button>
+
+                                <input
+                                    ref={modelsImportInputRef}
+                                    type="file"
+                                    className="d-none"
+                                    accept=".xlsx,.xls"
+                                    onChange={(e) => setModelsImportFile(e.target.files?.[0] || null)}
+                                />
+
+                                <button
+                                    className="btn btn-sm btn-outline-secondary"
+                                    onClick={() => modelsImportInputRef.current?.click()}
+                                    title={modelsImportFile ? `Selected: ${modelsImportFile.name}` : "Choose Excel file"}
+                                    disabled={modelsImportLoading}
+                                >
+                                    <CIcon icon={cilFolderOpen} />
+                                </button>
+
+                                <button
+                                    className="btn btn-sm btn-outline-primary"
+                                    onClick={importModelsExcelHandler}
+                                    disabled={!modelsImportFile || modelsImportLoading}
+                                    title={modelsImportLoading ? "Importing…" : "Import models from Excel"}
+                                >
+                                    <CIcon icon={cilCloudUpload} />
+                                </button>
+
                                 <button
                                     className="btn btn-sm btn-outline-primary"
                                     onClick={() => setShowAddModel((p) => !p)}

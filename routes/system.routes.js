@@ -39,6 +39,14 @@ router.delete('/delete_brand/:id', systemController.deleteBrand)
 router.get('/brands/template', ExcelJS.generateTemplate)
 router.post('/brands/import', excelUpload.single('file'), ExcelJS.processUploadedFile)
 
+// Series Excel ops (place before /series/:brand_slug)
+router.get('/series/template', ExcelJS.generateSeriesTemplate)
+router.post('/series/import', excelUpload.single('file'), ExcelJS.processSeriesUploadedFile)
+
+// Models Excel ops
+router.get('/models/template', ExcelJS.generateModelsTemplate)
+router.post('/models/import', excelUpload.single('file'), ExcelJS.processModelsUploadedFile)
+
 
 router.get('/get_roles', systemController.getRoles)
 
