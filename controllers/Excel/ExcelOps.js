@@ -195,7 +195,8 @@ async function processUploadedFile(req, res) {
 
                 const altText = cleanValue(row.alt_text);
 
-                const categorySlug = cleanValue(row.category_slug);
+                const categorySlugRaw = cleanValue(row.category_slug);
+                const categorySlug = categorySlugRaw ? String(categorySlugRaw).toLowerCase() : null;
                 if (!categorySlug) throw new Error('Category Slug is required');
 
                 // ── Insert brand + category mapping (transaction per row) ─────

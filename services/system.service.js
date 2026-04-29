@@ -297,8 +297,8 @@ exports.getBrands = async ({ cat_slug, all }) => {
     const data = await pool.query(`select b.id, b.name, b.slug, img.url, (b.status=1) status, count(DISTINCT ms.id) series_count
         from brands b
         join brand_categories bc on b.id = bc.brand_id
-        join brand_images bi on b.id=bi.brand_id
-        join images img on bi.image_id=img.id
+        left join brand_images bi on b.id=bi.brand_id
+        left join images img on bi.image_id=img.id
         left join model_series ms on b.id=ms.brand_id and ms.status=1
         ${whquery}
         group by b.id, img.url

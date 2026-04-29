@@ -45,6 +45,7 @@ const Brands = () => {
     }
 
     const editBrand = ({ id, name, url }) => {
+        alert(id)
         if (!id || !name || !url) return showToast('danger', 'Invalid Brand')
         setIsBrand(true)
         setIsEdit(true)
