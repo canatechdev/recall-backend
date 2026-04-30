@@ -846,6 +846,7 @@ function ModelTable({ models, loading, emptyMsg, refreshModels, showToast }) {
             setSavingModel(true);
             const formData = new FormData();
             formData.append('name', vals.name);
+            if (vals.image) formData.append('image', vals.image);
             await update_model(editingModel.id, formData);
             showToast?.("success", `Model updated to "${vals.name}"`);
             setEditingModel(null);
@@ -939,6 +940,7 @@ function ModelTable({ models, loading, emptyMsg, refreshModels, showToast }) {
                 <thead>
                     <tr>
                         <th>#</th>
+                        <th style={{ width: 90 }} className="text-center">Image</th>
                         <th>Model Name</th>
                         <th>Slug</th>
                         <th>Action</th>
@@ -949,6 +951,24 @@ function ModelTable({ models, loading, emptyMsg, refreshModels, showToast }) {
                         <React.Fragment key={i}>
                             <tr>
                                 <td className="text-muted small">{i + 1}</td>
+                                <td className="text-center">
+                                    {m?.url ? (
+                                        <img
+                                            src={import.meta.env.VITE_API_URL + 'uploads/' + m.url}
+                                            alt=""
+                                            className="rounded border"
+                                            style={{ width: 48, height: 48, objectFit: 'cover' }}
+                                        />
+                                    ) : (
+                                        <div
+                                            className="border rounded d-inline-flex align-items-center justify-content-center text-muted"
+                                            style={{ width: 48, height: 48, fontSize: 12 }}
+                                            title="No image"
+                                        >
+                                            N/A
+                                        </div>
+                                    )}
+                                </td>
                                 <td className="fw-semibold">{m.name}</td>
                                 <td><code className="small">{m.slug}</code></td>
                                 <td className="d-flex gap-2">
@@ -995,7 +1015,7 @@ function ModelTable({ models, loading, emptyMsg, refreshModels, showToast }) {
 
                             {editingModel?.id === m.id && (
                                 <tr key={`edit-${m.id}`}>
-                                    <td colSpan="4" className="bg-body-tertiary p-3">
+                                    <td colSpan="5" className="bg-body-tertiary p-3">
                                         <div className="d-flex justify-content-between align-items-center mb-2">
                                             <h6 className="fw-bold mb-0">Edit Model — {m.name}</h6>
                                             <button
@@ -1011,6 +1031,7 @@ function ModelTable({ models, loading, emptyMsg, refreshModels, showToast }) {
                                             key={m.id}
                                             fields={[
                                                 { key: "name", label: "Model Name", placeholder: "e.g. Galaxy S24 Ultra", col: "col-md-5", default: m.name },
+                                                { key: "image", label: "Model Image", type: "file", col: "col-md-5" },
                                             ]}
                                             onSave={saveModelUpdate}
                                             onCancel={() => setEditingModel(null)}
@@ -1023,7 +1044,7 @@ function ModelTable({ models, loading, emptyMsg, refreshModels, showToast }) {
                             {/* Configure panel — add/edit configs */}
                             {configModelSlug === m.slug && (
                                 <tr key={`config-${m.slug}`}>
-                                    <td colSpan="4" className="bg-body-tertiary p-3">
+                                    <td colSpan="5" className="bg-body-tertiary p-3">
                                         <div className="d-flex justify-content-between align-items-center mb-3">
                                             <h6 className="fw-bold mb-0">Sell Configs — {m.name}</h6>
                                             <button
@@ -1150,7 +1171,7 @@ function ModelTable({ models, loading, emptyMsg, refreshModels, showToast }) {
                             {/* View panel — read-only list */}
                             {viewModelSlug === m.slug && (
                                 <tr key={`view-${m.slug}`}>
-                                    <td colSpan="4" className="bg-body-tertiary p-3">
+                                    <td colSpan="5" className="bg-body-tertiary p-3">
                                         <h6 className="fw-bold mb-3">Configs — {m.name}</h6>
                                         {loadingConfigs ? <LoadingSpinner /> : configs.length === 0 ? (
                                             <EmptyState msg="No configs added yet." />

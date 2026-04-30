@@ -343,6 +343,67 @@ exports.getBrandsImportTemplate = async () => {
     return { buffer, fileName: 'brands_import_template.xlsx' };
 };
 
+exports.getCategoryBrandMappings = async (categoryId) => {
+    if (!categoryId) throw { status: 400, message: 'Category ID is required' };
+    const cat = await pool.query('SELECT 1 FROM categories WHERE id=$1', [categoryId]);
+    if (cat.rowCount === 0) throw { status: 404, message: 'Category not found' };
+
+    const data = await pool.query(
+        'SELECT brand_id FROM brand_categories WHERE category_id=$1 ORDER BY brand_id ASC',
+        [categoryId],
+    );
+    return data.rows.map((r) => Number(r.brand_id)).filter((n) => Number.isFinite(n));
+};
+
+exports.updateCategoryBrandMappings = async (categoryId, brandIds = []) => {
+    if (!categoryId) throw { status: 400, message: 'Category ID is required' };
+
+    const parsedBrandIds = Array.isArray(brandIds)
+        ? brandIds.map((id) => Number(id)).filter((n) => Number.isFinite(n))
+        : [];
+    const uniqueBrandIds = [...new Set(parsedBrandIds)];
+    // console.log('DEVAA',categoryId, brandIds, uniqueBrandIds, "updating category-brand mappings"); // IGNORE
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        const cat = await client.query('SELECT 1 FROM categories WHERE id=$1', [categoryId]);
+        if (cat.rowCount === 0) throw { status: 404, message: 'Category not found' };
+
+        if (uniqueBrandIds.length) {
+            const existing = await client.query(
+                'SELECT id FROM brands WHERE id = ANY($1::bigint[]) AND status<>2',
+                [uniqueBrandIds],
+            );
+            const existingIds = new Set(existing.rows.map((r) => Number(r.id)));
+            const missing = uniqueBrandIds.filter((id) => !existingIds.has(id));
+            if (missing.length) throw { status: 404, message: `Invalid brand id(s): ${missing.join(', ')}` };
+        }
+        await client.query('DELETE FROM brand_categories WHERE category_id=$1', [categoryId]);
+        
+        if (uniqueBrandIds.length) {
+            await client.query(
+                `INSERT INTO brand_categories(brand_id, category_id)
+                SELECT DISTINCT bid, $2::bigint
+                FROM UNNEST($1::bigint[]) AS bid`,
+                [uniqueBrandIds, Number(categoryId)],
+            );
+            console.log(typeof (Number(categoryId)))
+        }
+
+        await client.query('COMMIT');
+        return { success: true, category_id: Number(categoryId), mapped_count: uniqueBrandIds.length, brand_ids: uniqueBrandIds };
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw {
+            status: error.status || 500,
+            message: error.message || 'Failed to update category brand mappings',
+        };
+    } finally {
+        client.release();
+    }
+};
+
 exports.importBrandsFromExcel = async (buffer) => {
     if (!buffer) throw { status: 400, message: 'Missing Excel buffer' };
 
@@ -617,10 +678,14 @@ exports.updateBrand = async (id, data) => {
         if (image) {
             let oldFileToDelete = null;
             const imgResult = await client.query(`SELECT image_id FROM brand_images WHERE brand_id=$1`, [id]);
-            const oldImageId = imgResult.rows[0].image_id;
+            const oldImageId = imgResult.rows?.[0]?.image_id || null;
 
             const img = await client.query(`INSERT INTO images(url, alt_text, uploaded_by) VALUES ($1, $2, $3) RETURNING id`, [image, "Brand Image", null]);
-            await client.query(`UPDATE brand_images SET image_id=$1 WHERE brand_id=$2`, [img.rows[0].id, id]);
+            if (imgResult.rowCount === 0) {
+                await client.query(`INSERT INTO brand_images(brand_id, image_id) VALUES ($1,$2)`, [id, img.rows[0].id]);
+            } else {
+                await client.query(`UPDATE brand_images SET image_id=$1 WHERE brand_id=$2`, [img.rows[0].id, id]);
+            }
             oldFileToDelete = await deleteImageIfUnreferenced(client, oldImageId);
 
             await client.query("COMMIT");
@@ -631,8 +696,8 @@ exports.updateBrand = async (id, data) => {
             const updatedBrand = await pool.query(`select b.id, b.name, b.slug, img.url, count(DISTINCT ms.id) series_count
                 from brands b
                 join brand_categories bc on b.id = bc.brand_id
-                join brand_images bi on b.id=bi.brand_id
-                join images img on bi.image_id=img.id
+                left join brand_images bi on b.id=bi.brand_id
+                left join images img on bi.image_id=img.id
                 left join model_series ms on b.id=ms.brand_id and ms.status=1
                 WHERE b.id=$1
                 group by b.id, img.url`, [id]);
@@ -643,8 +708,8 @@ exports.updateBrand = async (id, data) => {
         const updatedBrand = await pool.query(`select b.id, b.name, b.slug, img.url, count(DISTINCT ms.id) series_count
             from brands b
             join brand_categories bc on b.id = bc.brand_id
-            join brand_images bi on b.id=bi.brand_id
-            join images img on bi.image_id=img.id
+            left join brand_images bi on b.id=bi.brand_id
+            left join images img on bi.image_id=img.id
             left join model_series ms on b.id=ms.brand_id and ms.status=1
             WHERE b.id=$1
             group by b.id, img.url`, [id]);
@@ -859,8 +924,7 @@ exports.updateModel = async (id, { name, image }) => {
                 "SELECT image_id FROM model_images WHERE model_id=$1",
                 [id]
             );
-            if (imgResult.rowCount === 0) throw { status: 404, message: "Model image mapping not found" };
-            const oldImageId = imgResult.rows[0].image_id;
+            const oldImageId = imgResult.rows?.[0]?.image_id || null;
 
             const newImg = await client.query(
                 "INSERT INTO images(url, alt_text, uploaded_by) VALUES ($1, $2, $3) RETURNING id",
@@ -869,8 +933,12 @@ exports.updateModel = async (id, { name, image }) => {
             imageInserted = true;
 
             await client.query(
-                "UPDATE model_images SET image_id=$1 WHERE model_id=$2",
-                [newImg.rows[0].id, id]
+                imgResult.rowCount === 0
+                    ? "INSERT INTO model_images(model_id, image_id) VALUES ($1,$2)"
+                    : "UPDATE model_images SET image_id=$2 WHERE model_id=$1",
+                imgResult.rowCount === 0
+                    ? [id, newImg.rows[0].id]
+                    : [id, newImg.rows[0].id]
             );
 
             oldFileToDelete = await deleteImageIfUnreferenced(client, oldImageId);
@@ -882,8 +950,8 @@ exports.updateModel = async (id, { name, image }) => {
             const updated = await pool.query(
                 `SELECT m.id, m.name, m.slug, img.url
                  FROM models m
-                 JOIN model_images mi ON m.id=mi.model_id
-                 JOIN images img ON mi.image_id=img.id
+                 LEFT JOIN model_images mi ON m.id=mi.model_id
+                 LEFT JOIN images img ON mi.image_id=img.id
                  WHERE m.id=$1`,
                 [id]
             );
@@ -895,8 +963,8 @@ exports.updateModel = async (id, { name, image }) => {
         const updated = await pool.query(
             `SELECT m.id, m.name, m.slug, img.url
              FROM models m
-             JOIN model_images mi ON m.id=mi.model_id
-             JOIN images img ON mi.image_id=img.id
+             LEFT JOIN model_images mi ON m.id=mi.model_id
+             LEFT JOIN images img ON mi.image_id=img.id
              WHERE m.id=$1`,
             [id]
         );

@@ -103,7 +103,7 @@ export default function SellQuestions() {
         fetchCategories();
     }, []);
 
-    //  Derived data â”€
+    //  Derived data 
 
     /**
      * Set of question IDs that are referenced in at least one option's `show` array.

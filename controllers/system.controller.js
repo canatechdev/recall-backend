@@ -197,3 +197,18 @@ exports.sarthakQuery = async (req, res) => {
     const data = await systemService.sarthakQuery(req.body);
     res.status(200).json(data.rows);
 }
+
+exports.getCategoryBrandMappings = async (req, res) => {
+    const { id } = req.params;
+    if (!id) throw { status: 400, message: 'Category ID is required' };
+    const data = await systemService.getCategoryBrandMappings(id);
+    res.status(200).json({ success: true, data });
+}
+
+exports.updateCategoryBrandMappings = async (req, res) => {
+    const { id } = req.params;
+    if (!id) throw { status: 400, message: 'Category ID is required' };
+    const brandIds = req.body?.brand_ids ?? req.body?.brandIds ?? req.body?.brands ?? [];
+    const data = await systemService.updateCategoryBrandMappings(id, brandIds);
+    res.status(200).json(data);
+}

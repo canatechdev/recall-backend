@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { CButton, CFormInput, CFormSelect } from '@coreui/react'
-import { delete_category, get_categories, create_category, update_category } from '../../../api/system_service'
+import { delete_category, get_categories, create_category, update_category, get_brands_all, get_category_brand_mappings, update_category_brand_mappings } from '../../../api/system_service'
 import CIcon from '@coreui/icons-react'
 import { cilPlus, cilNoteAdd, cilX } from '@coreui/icons'
 import ThemedTablePage from 'src/components/ThemedTablePage'
@@ -16,6 +16,14 @@ const Categories = () => {
     const [editId, setEditId] = useState(null)
     const [url, setUrl] = useState('')
 
+    const [rowMenuId, setRowMenuId] = useState(null)
+
+    const [mappingCategory, setMappingCategory] = useState(null)
+    const [allBrands, setAllBrands] = useState([])
+    const [mappedBrandIds, setMappedBrandIds] = useState(new Set())
+    const [mappingLoading, setMappingLoading] = useState(false)
+    const [mappingSaving, setMappingSaving] = useState(false)
+
     const [query, setQuery] = useState('')
     const toggleCategory = () => {
         setIsCategory(!isCategory);
@@ -25,6 +33,7 @@ const Categories = () => {
         setFile('');
         setUrl('');
         setEditId(null);
+        setMappingCategory(null);
     }
 
     const editCategory = ({ id, name, url, parent_id, status }) => {
@@ -36,6 +45,7 @@ const Categories = () => {
         setParent(parent_id || '');
         setName(name);
         setUrl(url);
+        setMappingCategory(null);
     }
     const showToast = (type, msg) => {
         setToast({ type, msg });
@@ -122,6 +132,59 @@ const Categories = () => {
         }
     }
 
+    const openMapBrands = async (cat) => {
+        if (!cat?.id) return showToast('danger', 'Invalid Category')
+        setIsCategory(false)
+        setIsEdit(false)
+        setEditId(null)
+        setMappingCategory({ id: cat.id, name: cat.name })
+        setRowMenuId(null)
+
+        try {
+            setMappingLoading(true)
+            const [brandsRes, mappingRes] = await Promise.all([
+                allBrands.length ? Promise.resolve({ data: allBrands }) : get_brands_all().then((r) => ({ data: r.data })),
+                get_category_brand_mappings(cat.id),
+            ])
+
+            const brands = Array.isArray(brandsRes.data) ? brandsRes.data : []
+            if (!allBrands.length) setAllBrands(brands)
+
+            const ids = mappingRes?.data?.data || []
+            setMappedBrandIds(new Set((Array.isArray(ids) ? ids : []).map((n) => Number(n)).filter((n) => Number.isFinite(n))))
+        } catch (err) {
+            showToast('danger', err.response?.data?.message || 'Failed to load brand mappings')
+        } finally {
+            setMappingLoading(false)
+        }
+    }
+
+    const toggleMappedBrand = (brandId) => {
+        const id = Number(brandId)
+        if (!Number.isFinite(id)) return
+        setMappedBrandIds((prev) => {
+            const next = new Set(prev)
+            if (next.has(id)) next.delete(id)
+            else next.add(id)
+            return next
+        })
+    }
+
+    const saveBrandMapping = async () => {
+        if (!mappingCategory?.id) return
+        try {
+            setMappingSaving(true)
+            const brandIds = Array.from(mappedBrandIds)
+            await update_category_brand_mappings(mappingCategory.id, brandIds)
+            showToast('success', 'Brand mapping saved')
+            setMappingCategory(null)
+        } catch (err) {
+            showToast('danger', err.response?.data?.message || 'Failed to save brand mapping')
+        } finally {
+            setMappingSaving(false)
+        }
+    }
+
     const filteredCategories = useMemo(() => {
         const q = query.trim().toLowerCase()
         return categories
@@ -157,13 +220,35 @@ const Categories = () => {
             headerClassName: 'text-center',
             cellClassName: 'text-center',
             render: (r) => (
-                <div className="d-flex justify-content-center gap-2 flex-wrap">
-                    <button onClick={() => editCategory(r)} className="btn btn-sm btn-outline-success">
-                        Edit
-                    </button>
-                    <button onClick={() => deleteCategory(r.id)} className="btn btn-sm btn-outline-danger">
-                        Delete
-                    </button>
+                <div className="d-flex justify-content-center">
+                    <div className="position-relative">
+                        <button
+                            type="button"
+                            className="btn btn-sm btn-outline-secondary"
+                            onClick={() => setRowMenuId((p) => (p === r.id ? null : r.id))}
+                            title="Actions"
+                        >
+                            ⋮
+                        </button>
+
+                        {rowMenuId === r.id && (
+                            <div
+                                className="dropdown-menu show"
+                                style={{ position: 'absolute', right: 0, top: '110%', zIndex: 20 }}
+                            >
+                                <button className="dropdown-item" onClick={() => { setRowMenuId(null); editCategory(r); }}>
+                                    Edit
+                                </button>
+                                <button className="dropdown-item" onClick={() => { setRowMenuId(null); openMapBrands(r); }}>
+                                    Map Brands
+                                </button>
+                                <div className="dropdown-divider" />
+                                <button className="dropdown-item text-danger" onClick={() => { setRowMenuId(null); deleteCategory(r.id); }}>
+                                    Delete
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
             ),
         },
@@ -261,6 +346,56 @@ const Categories = () => {
         </div>
     )
 
+    const mappingPanel = mappingCategory ? (
+        <div className="card border-0 shadow-sm mb-3">
+            <div className="card-header bg-body d-flex justify-content-between align-items-center">
+                <div>
+                    <div className="fw-semibold">Map Brands</div>
+                    <div className="small text-muted">Category: {mappingCategory.name}</div>
+                </div>
+                <div className="d-flex gap-2">
+                    <button
+                        className="btn btn-sm btn-outline-secondary"
+                        onClick={() => setMappingCategory(null)}
+                        disabled={mappingSaving}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        className="btn btn-sm btn-primary"
+                        onClick={saveBrandMapping}
+                        disabled={mappingSaving || mappingLoading}
+                    >
+                        {mappingSaving ? 'Saving…' : 'Save'}
+                    </button>
+                </div>
+            </div>
+            <div className="card-body">
+                {mappingLoading ? (
+                    <div className="text-muted small">Loading brands…</div>
+                ) : allBrands.length === 0 ? (
+                    <div className="text-muted small">No brands found.</div>
+                ) : (
+                    <div className="row g-2" style={{ maxHeight: 320, overflow: 'auto' }}>
+                        {allBrands.map((b) => (
+                            <div key={b.id} className="col-12 col-md-6">
+                                <label className="d-flex align-items-center gap-2 border rounded px-2 py-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={mappedBrandIds.has(Number(b.id))}
+                                        onChange={() => toggleMappedBrand(b.id)}
+                                    />
+                                    <span className="small fw-semibold">{b.name}</span>
+                                    <span className="ms-auto small text-muted">{b.slug}</span>
+                                </label>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    ) : null
+
     return (
         <div className="container py-4">
             {toast && (
@@ -272,6 +407,8 @@ const Categories = () => {
                     <button className="btn-close" onClick={() => setToast(null)} />
                 </div>
             )}
+
+            {mappingPanel}
 
             <ThemedTablePage
                 actions={{

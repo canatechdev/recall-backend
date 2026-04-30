@@ -27,6 +27,10 @@ router.put('/update_category/:id', upload.single('image'), reqBody, systemContro
 router.patch('/toggle_category/:id', reqBody, systemController.toggleCategory)
 router.delete('/delete_category/:id', systemController.deleteCategory)
 
+// Category ↔ Brand mapping
+router.get('/categories/:id/brands', systemController.getCategoryBrandMappings)
+router.put('/categories/:id/brands', reqBody, systemController.updateCategoryBrandMappings)
+
 router.get('/get_brands', systemController.getBrands)
 router.get('/get_brands/:cat_slug', systemController.getBrands)
 // router.get('/get_category_brands/:slug', systemController.getCategoryBrands)

@@ -196,15 +196,6 @@ async function generateModelsTemplate(req, res) {
             mainSheet.getRow(row).height = 20;
         }
 
-        // sample
-        mainSheet.getRow(FIRST_DATA_ROW).values = [
-            'Galaxy S24 Ultra',
-            'galaxy-s24-ultra',
-            1,
-        ];
-        mainSheet.getRow(FIRST_DATA_ROW).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F4FF' } };
-        mainSheet.getRow(FIRST_DATA_ROW).font = { italic: true, color: { argb: 'FF555555' } };
-
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', 'attachment; filename="Model_Upload_Template.xlsx"');
         await workbook.xlsx.write(res);
@@ -506,9 +497,7 @@ async function generateTemplate(req, res) {
         }
 
         // ── Sample row ────────────────────────────────────────────────────────
-        mainSheet.getRow(FIRST_DATA_ROW).values = ['Nike', 'nike', 'Nike brand alt text', categorySlugs[0] || ''];
-        mainSheet.getRow(FIRST_DATA_ROW).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F4FF' } };
-        mainSheet.getRow(FIRST_DATA_ROW).font = { italic: true, color: { argb: 'FF555555' } };
+        // (Intentionally no sample data row. Users often forget to delete samples before importing.)
 
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', 'attachment; filename="Brand_Upload_Template.xlsx"');
@@ -756,9 +745,7 @@ async function generateSeriesTemplate(req, res) {
             mainSheet.getRow(row).height = 20;
         }
 
-        mainSheet.getRow(FIRST_DATA_ROW).values = [brandSlugs[0] || '', 'Galaxy S', 'galaxy-s', 1];
-        mainSheet.getRow(FIRST_DATA_ROW).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F4FF' } };
-        mainSheet.getRow(FIRST_DATA_ROW).font = { italic: true, color: { argb: 'FF555555' } };
+        // (Intentionally no sample data row. Users often forget to delete samples before importing.)
 
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', 'attachment; filename="Model_Series_Upload_Template.xlsx"');

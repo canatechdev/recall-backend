@@ -46,12 +46,12 @@ const Brands = () => {
     }
 
     const editBrand = ({ id, name, url }) => {
-        if (!id || !name || !url) return showToast('danger', 'Invalid Brand')
+        if (!id || !name) return showToast('danger', 'Invalid Brand')
         setIsBrand(true)
         setIsEdit(true)
         setEditId(id)
         setName(name)
-        if (url) setUrl(url)
+        setUrl(url || '')
         setFile(null)
     }
 
@@ -213,12 +213,22 @@ const Brands = () => {
             headerClassName: 'text-center',
             cellClassName: 'text-center',
             render: (b) => (
-                <img
-                    className="rounded"
-                    src={import.meta.env.VITE_API_URL + 'uploads/' + b.url}
-                    alt=""
-                    style={{ width: '3rem' }}
-                />
+                b?.url ? (
+                    <img
+                        className="rounded"
+                        src={import.meta.env.VITE_API_URL + 'uploads/' + b.url}
+                        alt=""
+                        style={{ width: '3rem', height: '3rem', objectFit: 'cover' }}
+                    />
+                ) : (
+                    <div
+                        className="border rounded d-inline-flex align-items-center justify-content-center text-muted"
+                        style={{ width: '3rem', height: '3rem', fontSize: 12 }}
+                        title="No image"
+                    >
+                        N/A
+                    </div>
+                )
             ),
         },
         {

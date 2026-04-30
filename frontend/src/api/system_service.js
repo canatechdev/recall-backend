@@ -38,8 +38,20 @@ export const delete_category = (id) => {
 export const get_brands = () => {
     return api.get('api/system/get_brands/')
 }
+export const get_brands_all = () => {
+    return api.get('api/system/get_brands?all=true')
+}
 export const get_cat_brands = (catId) => {
     return api.get('api/system/get_brands/' + catId + '?all=true')
+}
+
+// ── Category ↔ Brand Mapping ─────────────────────────────
+export const get_category_brand_mappings = (categoryId) => {
+    return api.get('api/system/categories/' + categoryId + '/brands')
+}
+
+export const update_category_brand_mappings = (categoryId, brand_ids) => {
+    return api.put('api/system/categories/' + categoryId + '/brands', { brand_ids })
 }
 
 // export const get_category_brands = (cat_slug) => {
