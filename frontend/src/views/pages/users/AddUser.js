@@ -79,6 +79,11 @@ export default function AddUser() {
         const result = await get_roles();
         if (result.status == 200) setRoles(result.data);
     }
+    const setPhoneNumber=(val) => {
+        if (/^[0-9+\s-]*$/.test(val)) {
+            setPhone(val.slice(0, 10));
+        }
+    }
     // ── Address helpers ──────────────────────────────────────
     const addAddress = () => setAddresses([...addresses, { ...initialAddress }]);
     const removeAddress = (i) => setAddresses(addresses.filter((_, idx) => idx !== i));
@@ -224,7 +229,16 @@ export default function AddUser() {
         setSelectedRoles([]);
         // setStatus("active");
     };
-
+    const setFirstNameFilter = (val) => {
+        if (/^[a-zA-Z\s]*$/.test(val)) {
+            setFirstName(val.replace(/\s+/g, " ").slice(0, 50));
+        }
+    };
+    const setLastNameFilter = (val) => {
+        if (/^[a-zA-Z\s]*$/.test(val)) {
+            setLastName(val.replace(/\s+/g, " ").slice(0, 50));
+        }
+    };
     const showToast = (type, msg) => {
         setToast({ type, msg });
         setTimeout(() => setToast(null), 3500);
@@ -291,9 +305,9 @@ export default function AddUser() {
                                     <input
                                         type="tel"
                                         className="form-control"
-                                        placeholder="+91 9876543210"
+                                        placeholder="9876543210"
                                         value={phone}
-                                        onChange={(e) => setPhone(e.target.value)}
+                                        onChange={(e) => setPhoneNumber(e.target.value)}
                                         maxLength={15}
                                     />
                                 </div>
@@ -366,7 +380,7 @@ export default function AddUser() {
                                         className="form-control"
                                         placeholder="FName"
                                         value={firstName}
-                                        onChange={(e) => setFirstName(e.target.value)}
+                                        onChange={(e) => setFirstNameFilter(e.target.value)}
                                         maxLength={50}
                                     />
                                 </div>
@@ -379,7 +393,7 @@ export default function AddUser() {
                                         className="form-control"
                                         placeholder="LName"
                                         value={lastName}
-                                        onChange={(e) => setLastName(e.target.value)}
+                                        onChange={(e) => setLastNameFilter(e.target.value)}
                                         maxLength={50}
                                     />
                                 </div>
