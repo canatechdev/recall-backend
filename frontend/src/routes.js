@@ -2,6 +2,7 @@ import React from 'react'
 
 const Dashboard = React.lazy(() => import('./views/dashboard/Dashboard'))
 const Listings = React.lazy(() => import('./views/pages/Listings'))
+const Profile = React.lazy(() => import('./views/pages/Profile'))
 const Users = React.lazy(() => import('./views/pages/users/Users'))
 const AddUser = React.lazy(() => import('./views/pages/users/AddUser'))
 const Typography = React.lazy(() => import('./views/theme/typography/Typography'))
@@ -81,6 +82,8 @@ const Widgets = React.lazy(() => import('./views/widgets/Widgets'))
 const routes = [
   { path: '/', exact: true, name: 'Home' },
   { path: '/dashboard', name: 'Dashboard', element: Dashboard },
+
+  { path: '/profile', name: 'Profile', element: Profile },
 
 
 

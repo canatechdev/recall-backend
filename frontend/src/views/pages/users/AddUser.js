@@ -17,7 +17,13 @@ import {
     cilX,
     cilShieldAlt,
     cilPeople,
+    cilLowVision,
 } from "@coreui/icons";
+
+const eyeIcon = [
+    '512 512',
+    "<path fill='var(--ci-primary-color, currentColor)' d='M256 144C156 144 82 200 48 256c34 56 108 112 208 112s174-56 208-112c-34-56-108-112-208-112zm0 176a64 64 0 1 1 64-64 64 64 0 0 1-64 64z' class='ci-primary'/>",
+];
 
 const steps = ["Basic Info", "Profile", "Address", "Roles & Status"];
 
@@ -46,6 +52,8 @@ export default function AddUser() {
     const [phone, setPhone] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [isVerified, setIsVerified] = useState(false);
 
     // Step 2 - Profile
@@ -79,7 +87,7 @@ export default function AddUser() {
         const result = await get_roles();
         if (result.status == 200) setRoles(result.data);
     }
-    const setPhoneNumber=(val) => {
+    const setPhoneNumber = (val) => {
         if (/^[0-9+\s-]*$/.test(val)) {
             setPhone(val.slice(0, 10));
         }
@@ -315,25 +323,49 @@ export default function AddUser() {
                                     <label className="form-label fw-semibold">
                                         Password <span className="text-danger">*</span>
                                     </label>
-                                    <input
-                                        type="password"
-                                        className="form-control"
-                                        placeholder="Min. 8 characters"
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                    />
+                                    <div className="input-group">
+                                        <input
+                                            type={showPassword ? "text" : "password"}
+                                            className="form-control"
+                                            placeholder="Min. 8 characters"
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                        />
+                                        <span
+                                            className="input-group-text"
+                                            role="button"
+                                            aria-label={showPassword ? "Hide password" : "Show password"}
+                                            title={showPassword ? "Hide password" : "Show password"}
+                                            onClick={() => setShowPassword((v) => !v)}
+                                            style={{ cursor: "pointer", userSelect: "none" }}
+                                        >
+                                            <CIcon icon={showPassword ? cilLowVision : eyeIcon} />
+                                        </span>
+                                    </div>
                                 </div>
                                 <div className="col-md-6">
                                     <label className="form-label fw-semibold">
                                         Confirm Password <span className="text-danger">*</span>
                                     </label>
-                                    <input
-                                        type="password"
-                                        className="form-control"
-                                        placeholder="Repeat password"
-                                        value={confirmPassword}
-                                        onChange={(e) => setConfirmPassword(e.target.value)}
-                                    />
+                                    <div className="input-group">
+                                        <input
+                                            type={showConfirmPassword ? "text" : "password"}
+                                            className="form-control"
+                                            placeholder="Repeat password"
+                                            value={confirmPassword}
+                                            onChange={(e) => setConfirmPassword(e.target.value)}
+                                        />
+                                        <span
+                                            className="input-group-text"
+                                            role="button"
+                                            aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                                            title={showConfirmPassword ? "Hide password" : "Show password"}
+                                            onClick={() => setShowConfirmPassword((v) => !v)}
+                                            style={{ cursor: "pointer", userSelect: "none" }}
+                                        >
+                                            <CIcon icon={showConfirmPassword ? cilLowVision : eyeIcon} />
+                                        </span>
+                                    </div>
                                     {confirmPassword && password !== confirmPassword && (
                                         <div className="form-text text-danger">Passwords do not match.</div>
                                     )}

@@ -66,11 +66,44 @@ exports.removeMerchantRole = async (req, res) => {
 
 // ADDRESS
 exports.createAddress = async (req, res) => {
+    req.body.user_id = req.user.userId
     const data = await userService.createAddress(req.body);
     res.status(201).json(data);
 };
 
+exports.updateAddress = async (req, res) => {
+    if (!req.params.id) throw { status: 400, message: "Address ID is required" };
+    req.body.id = req.params.id;
+    req.body.user_id = req.user.userId;
+    const data = await userService.updateAddress(req.body);
+    res.status(201).json(data);
+};
+
 exports.getAddresses = async (req, res) => {
-    const data = await userService.getAddresses(req.params.user_id);
+    const data = await userService.getAddresses(req.user);
+    res.status(200).json(data);
+};
+
+// MY PROFILE
+exports.getMyProfile = async (req, res) => {
+    const userId = req.user?.userId;
+    if (!userId) throw { status: 401, message: 'Invalid session' };
+    const data = await userService.getMyProfile(userId);
+    res.status(200).json(data);
+};
+
+exports.updateMyProfile = async (req, res) => {
+    const userId = req.user?.userId;
+    if (!userId) throw { status: 401, message: 'Invalid session' };
+
+    const body = { ...req.body };
+    body.profile = parseMaybeJson(body.profile) || {};
+
+    if (req.file) {
+        body.profile = body.profile || {};
+        body.profile.avatar_url = req.file.filename;
+    }
+
+    const data = await userService.updateMyProfile(userId, body);
     res.status(200).json(data);
 };

@@ -14,11 +14,16 @@ import {
   CRow,
 } from '@coreui/react'
 import CIcon from '@coreui/icons-react'
-import { cilLockLocked, cilLowVision, cilMagnifyingGlass, cilUser } from '@coreui/icons'
+import { cilLockLocked, cilLowVision, cilUser } from '@coreui/icons'
 
 import logo from '../../../assets/brand/Recello_logo.png'
 
 import { useAuth } from 'src/context/AuthContext'
+
+const eyeIcon = [
+  '512 512',
+  "<path fill='var(--ci-primary-color, currentColor)' d='M256 144C156 144 82 200 48 256c34 56 108 112 208 112s174-56 208-112c-34-56-108-112-208-112zm0 176a64 64 0 1 1 64-64 64 64 0 0 1-64 64z' class='ci-primary'/>",
+]
 
 const Login = () => {
   const navigate = useNavigate()
@@ -127,7 +132,7 @@ const Login = () => {
                       onClick={() => setShowPassword((v) => !v)}
                       style={{ cursor: 'pointer', userSelect: 'none' }}
                     >
-                      <CIcon icon={showPassword ? cilLowVision : cilMagnifyingGlass} />
+                      <CIcon icon={showPassword ? cilLowVision : eyeIcon} />
                     </CInputGroupText>
                   </CInputGroup>
 

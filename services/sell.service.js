@@ -588,7 +588,7 @@ exports.calculateSellPrice = async (data) => {
 // ── Create Sell Listing ──────────────────────────────────────
 
 exports.createSellListing = async (data) => {
-    console.log("Creating sell listing with data:", data);
+    // console.log("Creating sell listing with data:", data);
     const { user_id, category_slug, brand_slug, model_slug, config_id, answers, expected_price } = data;
 
     if (!model_slug || !config_id || !answers || !expected_price || answers.length === 0)
@@ -703,6 +703,201 @@ exports.getListings = async ({ status }) => {
     return result.rows;
 };
 
+// ── Get Sell Listing Details (Lead Details) ─────────────────
+
+exports.getListingDetails = async (listing_id) => {
+    if (!listing_id) throw { status: 400, message: 'listing_id is required' };
+
+    const listingRes = await pool.query(
+        `
+        SELECT sl.id, sl.user_id, sl.category_id, sl.brand_id, sl.model_id, sl.config_id,
+               sl.base_price, sl.quoted_price, sl.expected_price,
+               sl.status, em.option_name status_label,
+               sl.assigned_merchant_id,
+               sl.created_at, sl.updated_at,
+
+               u.email user_email, u.phone user_phone,
+               up.first_name user_first_name, up.last_name user_last_name, up.avatar_url user_avatar_url,
+
+               c.name category_name, c.slug category_slug,
+               b.name brand_name, b.slug brand_slug,
+               ms.name series_name, ms.slug series_slug,
+               m.name model_name, m.slug model_slug,
+
+               smc.name config_name, smc.base_price config_base_price, smc.is_active config_is_active,
+
+               mu.email merchant_email,
+               mup.first_name merchant_first_name, mup.last_name merchant_last_name, mup.avatar_url merchant_avatar_url
+        FROM sell_listings sl
+        LEFT JOIN enum_master em ON sl.status=em.id AND em.master_name='listing_status'
+        LEFT JOIN users u ON sl.user_id=u.id
+        LEFT JOIN user_profile up ON u.id=up.user_id
+        LEFT JOIN categories c ON sl.category_id=c.id
+        LEFT JOIN brands b ON sl.brand_id=b.id
+        LEFT JOIN models m ON sl.model_id=m.id
+        LEFT JOIN model_series ms ON m.series_id=ms.id
+        LEFT JOIN sell_model_configs smc ON sl.config_id=smc.id
+        LEFT JOIN users mu ON sl.assigned_merchant_id=mu.id
+        LEFT JOIN user_profile mup ON mu.id=mup.user_id
+        WHERE sl.id=$1
+        LIMIT 1
+        `,
+        [listing_id],
+    );
+    if (listingRes.rowCount === 0) throw { status: 404, message: 'Listing not found' };
+    const listingRow = listingRes.rows[0];
+
+    const answersRes = await pool.query(
+        `
+        SELECT sla.question_id,
+               sq.text question_text,
+               sq.description question_description,
+               sq.input_type,
+               sq.sort_index,
+               sla.option_id,
+               sqo.text option_text,
+               sqo.price_deduction option_price_deduction,
+               sqo.sort_index option_sort_index
+        FROM sell_listing_answers sla
+        JOIN sell_questions sq ON sq.id=sla.question_id
+        JOIN sell_question_options sqo ON sqo.id=sla.option_id
+        WHERE sla.listing_id=$1
+        ORDER BY sq.sort_index, sq.id, sqo.sort_index, sqo.id
+        `,
+        [listing_id],
+    );
+
+    const pickupRes = await pool.query(
+        `
+        SELECT sp.id pickup_id,
+               sp.pickup_date, sp.pickup_slot_start, sp.pickup_slot_end,
+               sp.status pickup_status, pem.option_name pickup_status_label,
+               sp.assigned_agent_id, sp.notes,
+               sp.created_at pickup_created_at, sp.updated_at pickup_updated_at,
+
+               a.id address_id,
+               a.name address_name, a.phone address_phone,
+               a.line1, a.line2, a.city, a.state, a.pincode, a.country,
+               a.is_default
+        FROM sell_pickups sp
+        LEFT JOIN enum_master pem ON sp.status=pem.id AND pem.master_name='pickup_status'
+        LEFT JOIN addresses a ON sp.address_id=a.id
+        WHERE sp.listing_id=$1
+        ORDER BY sp.created_at DESC
+        LIMIT 1
+        `,
+        [listing_id],
+    );
+    const pickupRow = pickupRes.rows[0] || null;
+
+    const answersByQuestion = new Map();
+    for (const r of answersRes.rows) {
+        const key = String(r.question_id);
+        if (!answersByQuestion.has(key)) {
+            answersByQuestion.set(key, {
+                question_id: r.question_id,
+                text: r.question_text,
+                description: r.question_description,
+                input_type: r.input_type,
+                sort_index: r.sort_index,
+                options: [],
+            });
+        }
+        answersByQuestion.get(key).options.push({
+            option_id: r.option_id,
+            text: r.option_text,
+            price_deduction: r.option_price_deduction,
+            sort_index: r.option_sort_index,
+        });
+    }
+
+    return {
+        listing: {
+            id: listingRow.id,
+            status: listingRow.status,
+            status_label: listingRow.status_label,
+            base_price: listingRow.base_price,
+            quoted_price: listingRow.quoted_price,
+            expected_price: listingRow.expected_price,
+            created_at: listingRow.created_at,
+            updated_at: listingRow.updated_at,
+        },
+        user: {
+            id: listingRow.user_id,
+            email: listingRow.user_email,
+            phone: listingRow.user_phone,
+            first_name: listingRow.user_first_name,
+            last_name: listingRow.user_last_name,
+            avatar_url: listingRow.user_avatar_url,
+        },
+        merchant: listingRow.assigned_merchant_id
+            ? {
+                id: listingRow.assigned_merchant_id,
+                email: listingRow.merchant_email,
+                first_name: listingRow.merchant_first_name,
+                last_name: listingRow.merchant_last_name,
+                avatar_url: listingRow.merchant_avatar_url,
+            }
+            : null,
+        category: {
+            id: listingRow.category_id,
+            name: listingRow.category_name,
+            slug: listingRow.category_slug,
+        },
+        brand: {
+            id: listingRow.brand_id,
+            name: listingRow.brand_name,
+            slug: listingRow.brand_slug,
+        },
+        series: {
+            name: listingRow.series_name,
+            slug: listingRow.series_slug,
+        },
+        model: {
+            id: listingRow.model_id,
+            name: listingRow.model_name,
+            slug: listingRow.model_slug,
+        },
+        config: listingRow.config_id
+            ? {
+                id: listingRow.config_id,
+                name: listingRow.config_name,
+                base_price: listingRow.config_base_price,
+                is_active: listingRow.config_is_active,
+            }
+            : null,
+        pickup: pickupRow
+            ? {
+                id: pickupRow.pickup_id,
+                pickup_date: pickupRow.pickup_date,
+                pickup_slot_start: pickupRow.pickup_slot_start,
+                pickup_slot_end: pickupRow.pickup_slot_end,
+                status: pickupRow.pickup_status,
+                status_label: pickupRow.pickup_status_label,
+                assigned_agent_id: pickupRow.assigned_agent_id,
+                notes: pickupRow.notes,
+                created_at: pickupRow.pickup_created_at,
+                updated_at: pickupRow.pickup_updated_at,
+                address: pickupRow.address_id
+                    ? {
+                        id: pickupRow.address_id,
+                        name: pickupRow.address_name,
+                        phone: pickupRow.address_phone,
+                        line1: pickupRow.line1,
+                        line2: pickupRow.line2,
+                        city: pickupRow.city,
+                        state: pickupRow.state,
+                        pincode: pickupRow.pincode,
+                        country: pickupRow.country,
+                        is_default: pickupRow.is_default,
+                    }
+                    : null,
+            }
+            : null,
+        answers: Array.from(answersByQuestion.values()),
+    };
+};
+
 // ── Assign Listing to Merchant ───────────────────────────────
 
 exports.assignListing = async (listing_id, merchant_id) => {
@@ -757,7 +952,18 @@ exports.rejectListing = async (listing_id) => {
     return result.rows[0];
 };
 
-
+// PICKUP
+exports.schedulePickup = async ({ user_id, listing_id, address_id, pickup_date, pickup_slot_start, pickup_slot_end, notes }) => {
+    if (!listing_id || !address_id || !pickup_date || !pickup_slot_start || !pickup_slot_end) throw { status: 400, message: "Insufficient Parameters" }
+    const isValid = await pool.query(`SELECT 1 FROM users u
+        JOIN sell_listings sl ON u.id=sl.user_id
+        WHERE sl.id=$1 AND u.id=$2`, [listing_id, user_id]);
+        
+    if (0 === isValid.rowCount) throw { status: 404, message: "Invalid Sell Listing" }
+    const result = await pool.query(`INSERT INTO sell_pickups(listing_id, address_id, pickup_date, pickup_slot_start, pickup_slot_end, notes) VALUES($1, $2, $3, $4, $5, $6)
+    RETURNING *`, [listing_id, address_id, pickup_date, pickup_slot_start, pickup_slot_end, notes])
+    return result.rows || [];
+}
 
 // ── Get Merchants ────────────────────────────────────────────
 

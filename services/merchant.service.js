@@ -130,7 +130,9 @@ exports.getLeadsByLeadId = async ({ userId }, { id }) => {
                u.email user_email,
                up.first_name, up.last_name,
                c.name category, b.name brand, m.name model,
-               smc.name config_name
+               smc.name config_name,
+               sp.pickup_date, sp.pickup_slot_start, sp.pickup_slot_end,
+               
         FROM sell_listings sl
         LEFT JOIN users u ON sl.user_id=u.id
         LEFT JOIN user_profile up ON u.id=up.user_id
@@ -138,6 +140,8 @@ exports.getLeadsByLeadId = async ({ userId }, { id }) => {
         LEFT JOIN brands b ON sl.brand_id=b.id
         LEFT JOIN models m ON sl.model_id=m.id
         LEFT JOIN sell_model_configs smc ON sl.config_id=smc.id
+        LEFT JOIN sell_pickups sp ON sl.id=sp.listing_id
+        JOIN addresses a ON sp.address_id=a.id
         LEFT JOIN enum_master em ON sl.status=em.id AND em.master_name='listing_status'
         WHERE sl.id=$1 AND sl.assigned_merchant_id=$2
         `, [id, userId]);
@@ -178,7 +182,7 @@ exports.inviteMerchantAgent = async ({
             [user_id, contact, token]
         );
 
-        const link = `${process.env.BASE_URL}/api/verify_agent?token=${token}`;
+        const link = `${process.env.BASE_URL}/api/merchant/verify_agent?token=${token}`;
         console.log(link, contact)
 
         await this.sendEmailOTP({ link: link, email: contact });
@@ -316,7 +320,8 @@ exports.sendEmailOTP = async ({ link, email }) => {
   <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
     <h2 style="color: #333;">Registration Link</h2>
     <p>Use the following Link to verify your account. It expires in <b>48 hours</b>.</p>
-    <h1 style="text-align: center; letter-spacing: 4px; color: #1a73e8;">${link}</h1>
+    <h1 style="text-align: center; letter-spacing: 4px; color: #1a73e8;"> <a href="${link}" style="display:block;text-align:center;background:#1d4ed8;color:#fff;text-decoration:none;padding:13px 20px;border-radius:8px;font-size:13px;font-weight:700;">Verify Agent →</a>
+</h1>
     <p>If you did not request this, please ignore this email.</p>
     <hr>
     <p style="font-size: 12px; color: #888;">© 2026 Recello. All rights reserved.</p>

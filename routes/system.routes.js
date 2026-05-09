@@ -51,6 +51,10 @@ router.post('/series/import', excelUpload.single('file'), ExcelJS.processSeriesU
 router.get('/models/template', ExcelJS.generateModelsTemplate)
 router.post('/models/import', excelUpload.single('file'), ExcelJS.processModelsUploadedFile)
 
+// Unified Catalog Excel ops (Series + Models + Sell Configs)
+router.get('/catalog/template', ExcelJS.generateCatalogTemplate)
+router.post('/catalog/import', excelUpload.single('file'), ExcelJS.processCatalogUploadedFile)
+
 
 router.get('/get_roles', systemController.getRoles)
 

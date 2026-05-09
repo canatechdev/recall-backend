@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from 'src/context/AuthContext'
 import {
   CAvatar,
@@ -27,6 +28,7 @@ import avatar8 from './../../assets/images/avatars/7.jpg'
 
 const AppHeaderDropdown = () => {
   const { user, logout } = useAuth()
+  const navigate = useNavigate()
 
   const avatarSrc = useMemo(() => {
     const fileName = user?.avatar_url
@@ -43,7 +45,7 @@ const AppHeaderDropdown = () => {
       </CDropdownToggle>
       <CDropdownMenu className="pt-0" placement="bottom-end">
         <CDropdownHeader className="bg-body-secondary fw-semibold mb-2">Account</CDropdownHeader>
-        <CDropdownItem href="#">
+        <CDropdownItem as="button" type="button" onClick={() => navigate('/profile')}>
           <CIcon icon={cilUser} className="me-2" />
           Profile
         </CDropdownItem>

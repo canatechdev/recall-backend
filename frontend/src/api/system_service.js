@@ -97,6 +97,15 @@ export const import_models_excel = (formData) => {
     return api.post('api/system/models/import', formData)
 }
 
+// ── Unified Catalog Excel (Series + Models + Configs) ─────
+export const download_catalog_template = (params) => {
+    return api.get('api/system/catalog/template', { responseType: 'blob', params })
+}
+
+export const import_catalog_excel = (formData) => {
+    return api.post('api/system/catalog/import', formData)
+}
+
 
 export const create_product = () => {
     return api.get('api/system/create_product')
@@ -135,6 +144,15 @@ export const delete_model = (id) => {
 
 export const get_users = () => {
     return api.get('api/users/get_users')
+}
+
+// ── My Profile ────────────────────────────────────────────
+export const get_my_profile = () => {
+    return api.get('api/users/me/profile')
+}
+
+export const update_my_profile = (formData) => {
+    return api.put('api/users/me/profile', formData)
 }
 export const create_user = (data) => {
     return api.post('api/users/create', data)
@@ -251,6 +269,9 @@ export const calculate_sell_price = (data) => {
 
 export const get_sell_listings = (status) => {
     return api.get('api/sell/listings' + (status ? '?status=' + status : ''))
+}
+export const get_sell_listing_details = (id) => {
+    return api.get('api/sell/listings/' + id)
 }
 export const create_sell_listing = (data) => {
     return api.post('api/sell/listings', data)

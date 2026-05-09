@@ -1,6 +1,13 @@
 import React, { useRef, useState, useEffect } from "react";
 import { CIcon } from "@coreui/icons-react";
 import {
+    CModal,
+    CModalBody,
+    CModalFooter,
+    CModalHeader,
+    CModalTitle,
+} from "@coreui/react";
+import {
     cilPlus,
     cilX,
     cilCheck,
@@ -18,7 +25,7 @@ import {
     cilSettings,
     cilList,
 } from "@coreui/icons";
-import { get_categories, get_cat_brands, get_brand_series, create_series, update_series, delete_series, get_models, create_model, update_model, delete_model, get_model_configs, create_model_config, update_model_config, delete_model_config, download_series_template, import_series_excel, download_models_template, import_models_excel } from "../../../api/system_service";
+import { get_categories, get_cat_brands, get_brand_series, create_series, update_series, delete_series, get_models, create_model, update_model, delete_model, get_model_configs, create_model_config, update_model_config, delete_model_config, download_series_template, import_series_excel, download_models_template, import_models_excel, download_catalog_template, import_catalog_excel } from "../../../api/system_service";
 
 // const BASE = "http://localhost:5500";
 
@@ -35,7 +42,19 @@ function toSlug(str) {
 // ── Reusable inline form row ──────────────────────────────────────────────────
 function InlineForm({ fields, onSave, onCancel, loading }) {
     const [vals, setVals] = useState(() => Object.fromEntries(fields.map((f) => [f.key, f.default ?? ""])));
+    const [attempted, setAttempted] = useState(false);
     const set = (k, v) => setVals((p) => ({ ...p, [k]: v }));
+
+    const requiredMissing = (f) => {
+        if (!f.required) return false;
+        const v = vals[f.key];
+        return v === null || v === undefined || String(v).trim() === "";
+    };
+
+    const validate = () => {
+        const missing = fields.filter(requiredMissing);
+        return missing.length === 0;
+    };
 
     const handleNameChange = (k, v) => {
         set(k, v);
@@ -48,10 +67,13 @@ function InlineForm({ fields, onSave, onCancel, loading }) {
             <div className="row g-2">
                 {fields.map((f) => (
                     <div key={f.key} className={f.col || "col-md-6"}>
-                        <label className="form-label small fw-semibold mb-1">{f.label}</label>
+                        <label className="form-label small fw-semibold mb-1">
+                            {f.label}
+                            {f.required && <span className="text-danger"> *</span>}
+                        </label>
                         {f.type === "select" ? (
                             <select
-                                className="form-select form-select-sm"
+                                className={`form-select form-select-sm ${attempted && requiredMissing(f) ? "is-invalid" : ""}`}
                                 value={vals[f.key]}
                                 onChange={(e) => set(f.key, e.target.value)}
                             >
@@ -64,14 +86,14 @@ function InlineForm({ fields, onSave, onCancel, loading }) {
                         ) : f.type === "file" ? (
                             <input
                                 type="file"
-                                className="form-control form-control-sm"
+                                className={`form-control form-control-sm ${attempted && requiredMissing(f) ? "is-invalid" : ""}`}
                                 accept="image/*"
                                 onChange={(e) => set(f.key, e.target.files[0] ?? null)}
                             />
                         ) : (
                             <input
                                 type="text"
-                                className="form-control form-control-sm"
+                                className={`form-control form-control-sm ${attempted && requiredMissing(f) ? "is-invalid" : ""}`}
                                 placeholder={f.placeholder || ""}
                                 value={vals[f.key]}
                                 onChange={(e) =>
@@ -90,7 +112,15 @@ function InlineForm({ fields, onSave, onCancel, loading }) {
                 <button className="btn btn-sm btn-outline-secondary" onClick={onCancel} disabled={loading}>
                     <CIcon icon={cilX} className="me-1" /> Cancel
                 </button>
-                <button className="btn btn-sm btn-success" onClick={() => onSave(vals)} disabled={loading}>
+                <button
+                    className="btn btn-sm btn-success"
+                    onClick={() => {
+                        setAttempted(true);
+                        if (!validate()) return;
+                        onSave(vals);
+                    }}
+                    disabled={loading}
+                >
                     <CIcon icon={cilCheck} className="me-1" /> {loading ? "Saving..." : "Save"}
                 </button>
             </div>
@@ -154,6 +184,12 @@ export default function BrandModelManager() {
     const [modelsImportFile, setModelsImportFile] = useState(null);
     const [modelsImportLoading, setModelsImportLoading] = useState(false);
     const modelsImportInputRef = useRef(null);
+
+    const [catalogImportFile, setCatalogImportFile] = useState(null);
+    const [catalogImportLoading, setCatalogImportLoading] = useState(false);
+    const catalogImportInputRef = useRef(null);
+    const [catalogImportResult, setCatalogImportResult] = useState(null);
+    const [showCatalogFailures, setShowCatalogFailures] = useState(false);
 
     // Add form visibility
     const [showAddSeries, setShowAddSeries] = useState(false);
@@ -259,7 +295,7 @@ export default function BrandModelManager() {
             setEditingSeries(null);
             fetchSeries(selectedBrand.slug);
         } catch (e) {
-            showToast("danger", e.message);
+            showToast("danger", e.response?.data?.message || e.message || "Failed");
         } finally {
             setSaving(false);
         }
@@ -368,6 +404,63 @@ export default function BrandModelManager() {
         }
     };
 
+    const downloadCatalogTemplate = async () => {
+        try {
+            const res = await download_catalog_template({
+                category_slug: selectedCategory?.slug,
+                brand_slug: selectedBrand?.slug,
+            });
+            const blob = new Blob([res.data], {
+                type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "catalog_import_template.xlsx";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            showToast("danger", err.response?.data?.message || "Failed to download catalog template.");
+        }
+    };
+
+    const importCatalogExcelHandler = async () => {
+        if (!catalogImportFile) return showToast("danger", "Please choose an Excel file to import.");
+        if (!confirm("Import Series + Models + Configs from this Excel file?")) return;
+
+        try {
+            setCatalogImportLoading(true);
+            const formData = new FormData();
+            formData.append("file", catalogImportFile);
+            const res = await import_catalog_excel(formData);
+
+            const result = res.data?.data || null;
+            setCatalogImportResult(result);
+
+            const failedCount = Number(result?.failed_count || 0);
+            const insertedCount = Number(result?.inserted_count || 0);
+            if (failedCount > 0) {
+                showToast("danger", `Imported ${insertedCount} row(s). ${failedCount} row(s) failed — review and re-upload.`);
+                setShowCatalogFailures(true);
+            } else {
+                showToast("success", res.data?.message || "Catalog import complete");
+            }
+
+            setCatalogImportFile(null);
+            if (catalogImportInputRef.current) catalogImportInputRef.current.value = "";
+
+            // refresh the right panels based on current selection
+            if (selectedBrand?.slug) fetchSeries(selectedBrand.slug);
+            if (selectedSeries?.slug) fetchModels(selectedSeries.slug);
+        } catch (err) {
+            showToast("danger", err.response?.data?.message || "Failed to import catalog.");
+        } finally {
+            setCatalogImportLoading(false);
+        }
+    };
+
     const importModelsExcelHandler = async () => {
         if (!selectedCategory?.slug || !selectedBrand?.slug || !selectedSeries?.slug) {
             return showToast("danger", "Select category, brand and series first.");
@@ -386,9 +479,7 @@ export default function BrandModelManager() {
 
             const insertedCount = res?.data?.data?.inserted_count ?? 0;
             const failedCount = res?.data?.data?.failed_count ?? 0;
-            const failed = res?.data?.data?.failed ?? [];
-            showToast("success", `Imported: ${insertedCount}, Failed: ${failedCount}`);
-            if (failedCount) console.error("Models import failures:", failed);
+            showToast(failedCount ? "danger" : "success", `Imported: ${insertedCount}, Failed: ${failedCount}`);
 
             setModelsImportFile(null);
             if (modelsImportInputRef.current) modelsImportInputRef.current.value = "";
@@ -415,7 +506,7 @@ export default function BrandModelManager() {
             setShowAddModel(false);
             fetchModels(selectedSeries.slug);
         } catch (e) {
-            showToast("danger", e.message);
+            showToast("danger", e.response?.data?.message || e.message || "Failed");
         } finally {
             setSaving(false);
         }
@@ -456,6 +547,51 @@ export default function BrandModelManager() {
                 </div>
             )}
 
+            <CModal
+                visible={showCatalogFailures}
+                onClose={() => setShowCatalogFailures(false)}
+                size="lg"
+            >
+                <CModalHeader>
+                    <CModalTitle>Catalog import failures</CModalTitle>
+                </CModalHeader>
+                <CModalBody>
+                    {Array.isArray(catalogImportResult?.failed) && catalogImportResult.failed.length > 0 ? (
+                        <div className="table-responsive">
+                            <table className="table table-sm table-bordered align-middle mb-0">
+                                <thead className="table-light">
+                                    <tr>
+                                        <th style={{ width: 90 }}>Row</th>
+                                        <th style={{ width: 260 }}>Error</th>
+                                        <th>Data</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {catalogImportResult.failed.map((f, idx) => (
+                                        <tr key={`${f.rowNumber}-${idx}`}>
+                                            <td className="text-center">{f.rowNumber}</td>
+                                            <td className="text-danger small">{f.error || "Row failed"}</td>
+                                            <td className="small text-muted" style={{ maxWidth: 520 }}>
+                                                <pre className="mb-0" style={{ whiteSpace: "pre-wrap" }}>
+                                                    {JSON.stringify(f.data || {}, null, 2)}
+                                                </pre>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <div className="text-muted">No failed rows to show.</div>
+                    )}
+                </CModalBody>
+                <CModalFooter>
+                    <button className="btn btn-sm btn-outline-secondary" onClick={() => setShowCatalogFailures(false)}>
+                        Close
+                    </button>
+                </CModalFooter>
+            </CModal>
+
             <div className="card shadow-sm border-0">
                 {/* Header */}
                 <div className="card-header bg-body d-flex justify-content-between align-items-center">
@@ -493,6 +629,69 @@ export default function BrandModelManager() {
                         ))}
                     </div>
 
+                    {(activePanel === 2 || activePanel === 3) && (
+                        <div className="border rounded p-3 mb-3 bg-body-tertiary">
+                            <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                                <div>
+                                    <div className="fw-semibold">Catalog Excel (Series + Models + Configs)</div>
+                                    <div className="text-muted small">Download template → fill rows → choose file → import</div>
+                                </div>
+                                <div className="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+                                    <button
+                                        className="btn btn-sm btn-outline-secondary"
+                                        onClick={downloadCatalogTemplate}
+                                        title="Download unified Catalog Excel template"
+                                    >
+                                        <CIcon icon={cilCloudDownload} className="me-1" /> Download template
+                                    </button>
+
+                                    <input
+                                        ref={catalogImportInputRef}
+                                        type="file"
+                                        className="d-none"
+                                        accept=".xlsx,.xls"
+                                        onChange={(e) => setCatalogImportFile(e.target.files?.[0] || null)}
+                                    />
+
+                                    <button
+                                        className="btn btn-sm btn-outline-secondary"
+                                        onClick={() => catalogImportInputRef.current?.click()}
+                                        disabled={catalogImportLoading}
+                                        title="Choose Catalog Excel file"
+                                    >
+                                        <CIcon icon={cilFolderOpen} className="me-1" /> Choose file
+                                    </button>
+
+                                    {catalogImportFile ? (
+                                        <span className="badge bg-success">Selected: {catalogImportFile.name}</span>
+                                    ) : (
+                                        <span className="badge bg-secondary">No file selected</span>
+                                    )}
+
+                                    <button
+                                        className="btn btn-sm btn-primary"
+                                        onClick={importCatalogExcelHandler}
+                                        disabled={!catalogImportFile || catalogImportLoading}
+                                        title={catalogImportLoading ? "Importing…" : "Import from Excel"}
+                                    >
+                                        <CIcon icon={cilCloudUpload} className="me-1" />
+                                        {catalogImportLoading ? "Importing…" : "Import"}
+                                    </button>
+
+                                    {Number(catalogImportResult?.failed_count || 0) > 0 && (
+                                        <button
+                                            className="btn btn-sm btn-outline-danger"
+                                            onClick={() => setShowCatalogFailures(true)}
+                                            title="View failed rows"
+                                        >
+                                            View failures ({catalogImportResult.failed_count})
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* ── PANEL 0 — Categories ── */}
                     {activePanel === 0 && (
                         <PanelGrid
@@ -522,40 +721,6 @@ export default function BrandModelManager() {
                         <div>
                             <div className="d-flex justify-content-end mb-3 gap-2 flex-wrap">
                                 <button
-                                    className="btn btn-sm btn-outline-secondary"
-                                    onClick={downloadSeriesTemplate}
-                                    title="Download series Excel template"
-                                >
-                                    <CIcon icon={cilCloudDownload} />
-                                </button>
-
-                                <input
-                                    ref={seriesImportInputRef}
-                                    type="file"
-                                    className="d-none"
-                                    accept=".xlsx,.xls"
-                                    onChange={(e) => setSeriesImportFile(e.target.files?.[0] || null)}
-                                />
-
-                                <button
-                                    className="btn btn-sm btn-outline-secondary"
-                                    onClick={() => seriesImportInputRef.current?.click()}
-                                    title={seriesImportFile ? `Selected: ${seriesImportFile.name}` : "Choose Excel file"}
-                                    disabled={seriesImportLoading}
-                                >
-                                    <CIcon icon={cilFolderOpen} />
-                                </button>
-
-                                <button
-                                    className="btn btn-sm btn-outline-primary"
-                                    onClick={importSeriesExcelHandler}
-                                    disabled={!seriesImportFile || seriesImportLoading}
-                                    title={seriesImportLoading ? "Importing…" : "Import series from Excel"}
-                                >
-                                    <CIcon icon={cilCloudUpload} />
-                                </button>
-
-                                <button
                                     className="btn btn-sm btn-outline-primary"
                                     onClick={() => { setShowAddSeries((p) => !p); setEditingSeries(null); }}
                                 >
@@ -567,7 +732,7 @@ export default function BrandModelManager() {
                             {showAddSeries && (
                                 <InlineForm
                                     fields={[
-                                        { key: "name", label: "Series Name", placeholder: "e.g. Galaxy S", col: "col-md-4" },
+                                        { key: "name", label: "Series Name", required: true, placeholder: "e.g. Galaxy S", col: "col-md-4" },
                                     ]}
                                     onSave={saveSeries}
                                     onCancel={() => setShowAddSeries(false)}
@@ -592,7 +757,7 @@ export default function BrandModelManager() {
                                     <InlineForm
                                         key={editingSeries.id}
                                         fields={[
-                                            { key: "name", label: "Series Name", placeholder: "e.g. Galaxy S", col: "col-md-4", default: editingSeries.name },
+                                            { key: "name", label: "Series Name", required: true, placeholder: "e.g. Galaxy S", col: "col-md-4", default: editingSeries.name },
                                         ]}
                                         onSave={saveSeriesUpdate}
                                         onCancel={() => setEditingSeries(null)}
@@ -620,40 +785,6 @@ export default function BrandModelManager() {
                         <div>
                             <div className="d-flex justify-content-end mb-3 gap-2 flex-wrap">
                                 <button
-                                    className="btn btn-sm btn-outline-secondary"
-                                    onClick={downloadModelsTemplate}
-                                    title="Download models Excel template"
-                                >
-                                    <CIcon icon={cilCloudDownload} />
-                                </button>
-
-                                <input
-                                    ref={modelsImportInputRef}
-                                    type="file"
-                                    className="d-none"
-                                    accept=".xlsx,.xls"
-                                    onChange={(e) => setModelsImportFile(e.target.files?.[0] || null)}
-                                />
-
-                                <button
-                                    className="btn btn-sm btn-outline-secondary"
-                                    onClick={() => modelsImportInputRef.current?.click()}
-                                    title={modelsImportFile ? `Selected: ${modelsImportFile.name}` : "Choose Excel file"}
-                                    disabled={modelsImportLoading}
-                                >
-                                    <CIcon icon={cilFolderOpen} />
-                                </button>
-
-                                <button
-                                    className="btn btn-sm btn-outline-primary"
-                                    onClick={importModelsExcelHandler}
-                                    disabled={!modelsImportFile || modelsImportLoading}
-                                    title={modelsImportLoading ? "Importing…" : "Import models from Excel"}
-                                >
-                                    <CIcon icon={cilCloudUpload} />
-                                </button>
-
-                                <button
                                     className="btn btn-sm btn-outline-primary"
                                     onClick={() => setShowAddModel((p) => !p)}
                                 >
@@ -665,7 +796,7 @@ export default function BrandModelManager() {
                             {showAddModel && (
                                 <InlineForm
                                     fields={[
-                                        { key: "name", label: "Model Name", placeholder: "e.g. Galaxy S24 Ultra", col: "col-md-4" },
+                                        { key: "name", label: "Model Name", required: true, placeholder: "e.g. Galaxy S24 Ultra", col: "col-md-4" },
                                         { key: "image", label: "Model Image", type: "file", col: "col-md-4" },
                                     ]}
                                     onSave={saveModel}

@@ -66,6 +66,13 @@ const inputTypeBadge = (type) => {
 };
 
 export default function SellQuestions() {
+    const [toast, setToast] = useState(null);
+    const showToast = (type, msg) => {
+        setToast({ type, msg });
+        window.clearTimeout(showToast._t);
+        showToast._t = window.setTimeout(() => setToast(null), 3500);
+    };
+
     const [questions, setQuestions] = useState([]);
     const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -79,6 +86,7 @@ export default function SellQuestions() {
 
     // Add question form
     const [newQ, setNewQ] = useState({ text: "", description: "", input_type: "yes_no", category_slugs: [] });
+    const [addAttempted, setAddAttempted] = useState(false);
 
     // Options â€” shared add form; keyed by expanded question
     const [newOpt, setNewOpt] = useState({ text: "", price_deduction: 0 });
@@ -192,7 +200,7 @@ export default function SellQuestions() {
             const raw = Array.isArray(res.data) ? res.data : [];
             setQuestions(raw.map(normalizeQuestion));
         } catch (e) {
-            console.error(e);
+            showToast('danger', e?.response?.data?.message || 'Failed to load questions');
             setQuestions([]);
         } finally {
             setLoading(false);
@@ -204,7 +212,7 @@ export default function SellQuestions() {
             const res = await get_categories("true");
             setCategories(Array.isArray(res.data) ? res.data : []);
         } catch (e) {
-            console.error(e);
+            showToast('danger', e?.response?.data?.message || 'Failed to load categories');
         }
     };
 
@@ -217,7 +225,12 @@ export default function SellQuestions() {
     });
 
     const handleCreateQuestion = async () => {
-        if (!newQ.text?.trim() || !newQ.input_type) return;
+        setAddAttempted(true);
+        if (!newQ.text?.trim()) return showToast('danger', 'Question text is required');
+        if (!newQ.input_type) return showToast('danger', 'Input type is required');
+        if (!Array.isArray(newQ.category_slugs) || newQ.category_slugs.length === 0) {
+            return showToast('danger', 'Select at least one category before saving');
+        }
         try {
             setSaving(true);
             const nextSortIndex = (questions.length > 0
@@ -226,9 +239,11 @@ export default function SellQuestions() {
             await create_sell_question(buildQuestionPayload(newQ, nextSortIndex));
             setShowAdd(false);
             setNewQ({ text: "", description: "", input_type: "yes_no", category_slugs: [] });
+            setAddAttempted(false);
+            showToast('success', 'Question created');
             fetchQuestions();
         } catch (e) {
-            console.error(e?.response?.data?.message || "Failed to create question");
+            showToast('danger', e?.response?.data?.message || 'Failed to create question');
         } finally {
             setSaving(false);
         }
@@ -241,9 +256,10 @@ export default function SellQuestions() {
             const raw = optDeductionDraft[String(opt.id)];
             const pct = Math.min(100, Math.max(0, parseFloat(raw) || 0));
             await update_question_option(opt.id, { price_deduction: pct });
+            showToast('success', 'Deduction updated');
             fetchQuestions();
         } catch (e) {
-            console.error(e?.response?.data?.message || "Failed to update deduction");
+            showToast('danger', e?.response?.data?.message || 'Failed to update deduction');
         } finally {
             setSavingDeductionId(null);
         }
@@ -260,14 +276,15 @@ export default function SellQuestions() {
     };
 
     const handleUpdateQuestion = async () => {
-        if (!editData.text?.trim()) return;
+        if (!editData.text?.trim()) return showToast('danger', 'Question text is required');
         try {
             setSaving(true);
             await update_sell_question(editingId, buildQuestionPayload(editData, editData.sort_index));
             setEditingId(null);
+            showToast('success', 'Question updated');
             fetchQuestions();
         } catch (e) {
-            console.error(e?.response?.data?.message || "Failed to update question");
+            showToast('danger', e?.response?.data?.message || 'Failed to update question');
         } finally {
             setSaving(false);
         }
@@ -278,9 +295,10 @@ export default function SellQuestions() {
         try {
             await delete_sell_question(id);
             if (expandedId === id) { setExpandedId(null); }
+            showToast('success', 'Question deactivated');
             fetchQuestions();
         } catch (e) {
-            console.error(e?.response?.data?.message || "Failed to delete question");
+            showToast('danger', e?.response?.data?.message || 'Failed to deactivate question');
         }
     };
 
@@ -305,7 +323,7 @@ export default function SellQuestions() {
     //  Option CRUD 
 
     const handleAddOption = async (questionId) => {
-        if (!newOpt.text?.trim()) return;
+        if (!newOpt.text?.trim()) return showToast('danger', 'Option text is required');
         try {
             setSavingOpt(true);
             const question = questions.find(q => String(q.id) === String(questionId));
@@ -318,9 +336,10 @@ export default function SellQuestions() {
                 sort_index: nextOptSort,
             });
             setNewOpt({ text: "", price_deduction: 0 });
+            showToast('success', 'Option added');
             fetchQuestions();
         } catch (e) {
-            console.error(e?.response?.data?.message || "Failed to add option");
+            showToast('danger', e?.response?.data?.message || 'Failed to add option');
         } finally {
             setSavingOpt(false);
         }
@@ -331,25 +350,29 @@ export default function SellQuestions() {
         if (!confirm("Delete this option?")) return;
         try {
             await delete_question_option(optId);
+            showToast('success', 'Option deleted');
             fetchQuestions();
         } catch (e) {
-            console.error(e?.response?.data?.message || "Failed to delete option");
+            showToast('danger', e?.response?.data?.message || 'Failed to delete option');
         }
     };
 
     //  Condition CRUD â”€
 
     const handleAddCondition = async () => {
-        if (!newCond.trigger_option_id || !newCond.show_question_id) return;
+        if (!newCond.trigger_option_id || !newCond.show_question_id) {
+            return showToast('danger', 'Select both an option and a question to show');
+        }
         try {
             await create_question_condition({
                 trigger_option_id: parseInt(newCond.trigger_option_id),
                 show_question_id: parseInt(newCond.show_question_id),
             });
             setNewCond({ trigger_option_id: "", show_question_id: "" });
+            showToast('success', 'Condition added');
             fetchQuestions(); // refresh show[] arrays
         } catch (e) {
-            console.error(e?.response?.data?.message || "Failed to add condition");
+            showToast('danger', e?.response?.data?.message || 'Failed to add condition');
         }
     };
 
@@ -364,30 +387,33 @@ export default function SellQuestions() {
             );
             if (!cond?.id) return;
             await delete_question_condition(cond.id);
+            showToast('success', 'Condition removed');
             fetchQuestions(); // refresh show[] arrays
         } catch (e) {
-            console.error(e?.response?.data?.message || "Failed to delete condition");
+            showToast('danger', e?.response?.data?.message || 'Failed to remove condition');
         }
     };
 
 
     const handleMapCategory = async (questionId) => {
-        if (!mapCatSlug) return;
+        if (!mapCatSlug) return showToast('danger', 'Select a category to map');
         try {
             await map_question_to_category({ category_slug: mapCatSlug, question_id: questionId });
             setMapCatSlug("");
+            showToast('success', 'Category mapped');
             fetchQuestions();
         } catch (e) {
-            console.error(e?.response?.data?.message || "Failed to map category");
+            showToast('danger', e?.response?.data?.message || 'Failed to map category');
         }
     };
 
     const handleUnmapCategory = async (categoryId, questionId) => {
         try {
             await unmap_question_from_category(categoryId, questionId);
+            showToast('success', 'Category unmapped');
             fetchQuestions();
         } catch (e) {
-            console.error(e?.response?.data?.message || "Failed to unmap category");
+            showToast('danger', e?.response?.data?.message || 'Failed to unmap category');
         }
     };
 
@@ -408,6 +434,16 @@ export default function SellQuestions() {
 
     return (
         <div className="container py-4">
+            {toast && (
+                <div
+                    className={`alert alert-${toast.type} alert-dismissible position-fixed top-0 end-0 m-3 shadow`}
+                    style={{ zIndex: 9999, minWidth: 300 }}
+                >
+                    <span>{toast.msg}</span>
+                    <button className="btn-close" onClick={() => setToast(null)} />
+                </div>
+            )}
+
             <ThemedTablePage
                 loading={loading}
                 actions={{
@@ -514,9 +550,11 @@ export default function SellQuestions() {
                                 <h6 className="fw-semibold mb-3">New Question</h6>
                                 <div className="row g-2">
                                     <div className="col-md-4">
-                                        <label className="form-label small fw-semibold">Question Text *</label>
+                                        <label className="form-label small fw-semibold">
+                                            Question Text <span className="text-danger">*</span>
+                                        </label>
                                         <input
-                                            type="text" className="form-control form-control-sm"
+                                            type="text" className={`form-control form-control-sm ${addAttempted && !newQ.text?.trim() ? "is-invalid" : ""}`}
                                             placeholder="e.g. Is the screen cracked?"
                                             value={newQ.text}
                                             onChange={e => setNewQ(p => ({ ...p, text: e.target.value }))}
@@ -532,7 +570,9 @@ export default function SellQuestions() {
                                         />
                                     </div>
                                     <div className="col-md-3">
-                                        <label className="form-label small fw-semibold">Input Type *</label>
+                                        <label className="form-label small fw-semibold">
+                                            Input Type <span className="text-danger">*</span>
+                                        </label>
                                         <select
                                             className="form-select form-select-sm"
                                             value={newQ.input_type}
@@ -549,8 +589,10 @@ export default function SellQuestions() {
                                         </div>
                                     </div>
                                     <div className="col-12">
-                                        <label className="form-label small fw-semibold">Map to Categories</label>
-                                        <div className="d-flex flex-wrap gap-2">
+                                        <label className="form-label small fw-semibold">
+                                            Map to Categories <span className="text-danger">*</span>
+                                        </label>
+                                        <div className={`d-flex flex-wrap gap-2 p-2 rounded ${addAttempted && (newQ.category_slugs ?? []).length === 0 ? "border border-danger" : ""}`}>
                                             {categories.map(c => (
                                                 <button
                                                     key={c.slug}
@@ -562,6 +604,9 @@ export default function SellQuestions() {
                                                 </button>
                                             ))}
                                         </div>
+                                        {addAttempted && (newQ.category_slugs ?? []).length === 0 && (
+                                            <div className="text-danger small mt-1">Select at least one category.</div>
+                                        )}
                                     </div>
                                 </div>
                                 <div className="d-flex gap-2 mt-3 justify-content-end">
@@ -571,7 +616,7 @@ export default function SellQuestions() {
                                     <button
                                         className="btn btn-sm btn-success"
                                         onClick={handleCreateQuestion}
-                                        disabled={saving || !newQ.text?.trim()}
+                                        disabled={saving}
                                     >
                                         <CIcon icon={cilCheck} className="me-1" />
                                         {saving ? "Saving..." : "Save"}

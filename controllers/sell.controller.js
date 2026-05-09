@@ -148,7 +148,7 @@ exports.calculatePrice = async (req, res) => {
 
 exports.createListing = async (req, res) => {
     req.body.user_id = req.user.userId; // for now
-    if (!req.user.userId)   throw { status: 400, message: "ID is required" };
+    if (!req.user.userId) throw { status: 400, message: "ID is required" };
 
     const data = await sellService.createSellListing(req.body);
     res.status(201).json(data);
@@ -156,6 +156,13 @@ exports.createListing = async (req, res) => {
 
 exports.getListings = async (req, res) => {
     const data = await sellService.getListings(req.query);
+    res.status(200).json(data);
+};
+
+exports.getListingDetails = async (req, res) => {
+    const { id } = req.params;
+    if (!id) throw { status: 400, message: 'Listing id is required' };
+    const data = await sellService.getListingDetails(id);
     res.status(200).json(data);
 };
 
@@ -178,9 +185,14 @@ exports.rejectListing = async (req, res) => {
     res.status(200).json(data);
 };
 
+// PICKUP
+exports.schedulePickup = async (req, res) => {
+    req.body.user_id = req.user.userId
+    const result = await sellService.schedulePickup(req.body);
+    res.status(200).json(result);
+}
 
 // ── Merchants ─────────────────────────────────────────────
-
 exports.getMerchants = async (req, res) => {
     const data = await sellService.getMerchants();
     res.status(200).json(data);

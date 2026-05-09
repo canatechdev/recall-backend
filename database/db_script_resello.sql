@@ -297,24 +297,26 @@ BEGIN;
 		created_at   TIMESTAMP DEFAULT NOW()
 	);
 
-	CREATE OR REPLACE FUNCTION enum_master_sort_index()
+	CREATE OR REPLACE FUNCTION enum_master_id()
 	RETURNS TRIGGER
 	LANGUAGE plpgsql AS $$
+	DECLARE max_id INT;
 	BEGIN
-		IF NEW.sort_index IS NULL OR NEW.sort_index = 1 THEN
-			SELECT COALESCE(MAX(sort_index),0)+1
-			INTO NEW.sort_index
+		SELECT COALESCE(MAX(id),0) + 1 
+			INTO max_id 
 			FROM enum_master
 			WHERE master_name = NEW.master_name;
-		END IF;
-		RETURN NEW;
+
+			NEW.id = max_id;
+			NEW.sort_index= max_id;
+			RETURN NEW;
 	END;
 	$$;
 	
 	CREATE TRIGGER trg_enum_sort_index
 	BEFORE INSERT ON enum_master
 	FOR EACH ROW
-	EXECUTE FUNCTION enum_master_sort_index();
+	EXECUTE FUNCTION enum_master_id();
 
 
 
