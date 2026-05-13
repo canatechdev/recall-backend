@@ -1149,7 +1149,7 @@ exports.rejectListing = async (listing_id) => {
     return result.rows[0];
 };
 
-// PICKUP
+// PICKUPS
 exports.schedulePickup = async ({ user_id, listing_id, address_id, pickup_date, pickup_slot_start, pickup_slot_end, notes }) => {
     if (!listing_id || !address_id || !pickup_date || !pickup_slot_start || !pickup_slot_end) throw { status: 400, message: "Insufficient Parameters" }
     const isValid = await pool.query(`SELECT 1 FROM users u
