@@ -29,8 +29,22 @@ exports.deleteModelConfig = async (req, res) => {
 // ── Questions ─────────────────────────────────────────────
 
 exports.getQuestions = async (req, res) => {
-    const data = await sellService.getQuestions();
+    const data = await sellService.getQuestions(req.query);
     res.status(200).json(data);
+};
+
+exports.getQuestionContexts = async (req, res) => {
+    const data = await sellService.getQuestionContexts();
+    res.status(200).json(data);
+};
+
+exports.uploadImage = async (req, res) => {
+    const data = await sellService.uploadImage({
+        file: req.file,
+        alt_text: req.body?.alt_text,
+        uploaded_by: req.user?.userId ?? null,
+    });
+    res.status(201).json(data);
 };
 
 exports.getQuestionsByModel = async (req, res) => {
@@ -133,7 +147,7 @@ exports.unmapQuestionFromCategory = async (req, res) => {
 
 exports.getQuestionsByCategorySlug = async (req, res) => {
     const { category_slug } = req.params;
-    const data = await sellService.getQuestionsByCategorySlug(category_slug);
+    const data = await sellService.getQuestionsByCategorySlug(category_slug, req.query);
     res.status(200).json(data);
 };
 

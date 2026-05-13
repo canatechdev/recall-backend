@@ -180,7 +180,7 @@ BEGIN;
 
 	CREATE TABLE auth_otp(
 		id UUID PRIMARY KEY,
-		user_id TEXT GENERATED ALWAYS AS (email) STORED,
+		user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
 		email TEXT NOT NULL,
 		otp_hash TEXT NOT NULL,
 		attempts INT NOT NULL DEFAULT 0,
@@ -221,6 +221,7 @@ BEGIN;
 		text TEXT NOT NULL,
 		description TEXT,                          -- helper text shown below question
 		input_type VARCHAR(20) NOT NULL,           -- 'yes_no', 'single_select', 'multi_select'
+		context INT NOT NULL DEFAULT 1,            -- enum_master.master_name='question_context' | sell inspection both
 		sort_index INT DEFAULT 1,
 		is_active BOOLEAN DEFAULT TRUE
 	);
@@ -236,8 +237,9 @@ BEGIN;
 	CREATE TABLE sell_question_options (
 		id BIGSERIAL PRIMARY KEY,
 		question_id BIGINT NOT NULL REFERENCES sell_questions(id) ON DELETE CASCADE,
-		text VARCHAR(100) NOT NULL,                -- "Yes", "No", "Minor Scratches"
+		text VARCHAR(100) NOT NULL,               -- "Yes", "No", "Minor Scratches"
 		price_deduction NUMERIC(10,2) DEFAULT 0,  -- deducted from base price
+		option_image_id BIGINT DEFAULT NULL REFERENCES images(id) ON DELETE SET NULL, -- optional image per option
 		sort_index INT DEFAULT 1
 	);
 	
@@ -263,6 +265,8 @@ BEGIN;
 		listing_id BIGINT NOT NULL REFERENCES sell_listings(id) ON DELETE CASCADE,
 		question_id BIGINT NOT NULL REFERENCES sell_questions(id) ON DELETE CASCADE,
 		option_id BIGINT NOT NULL REFERENCES sell_question_options(id) ON DELETE CASCADE,
+		answer_image_id BIGINT REFERENCES images(id) ON DELETE SET NULL, -- optional proof/inspection image
+		created_at TIMESTAMP DEFAULT NOW(),
 		UNIQUE(listing_id, question_id, option_id)
 	);
 	
@@ -295,6 +299,26 @@ BEGIN;
 		status       INT DEFAULT 1,        -- invite_status | pending accepted expired
 		expires_at   TIMESTAMP NOT NULL DEFAULT NOW() + INTERVAL '48 hours',
 		created_at   TIMESTAMP DEFAULT NOW()
+	);
+
+	CREATE TABLE merchant_agents (
+		merchant_id   BIGINT REFERENCES users(id) ON DELETE CASCADE,
+		agent_user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
+		is_active     BOOLEAN DEFAULT TRUE,
+		joined_at     TIMESTAMP DEFAULT NOW(),
+		PRIMARY KEY (merchant_id, agent_user_id)
+	);
+	
+	CREATE TABLE sell_listing_otps (
+		id UUID PRIMARY KEY,
+		listing_id  BIGINT NOT NULL REFERENCES sell_listings(id) ON DELETE CASCADE,
+		sent_to     TEXT NOT NULL,              -- customer's phone/email
+		otp_hash    TEXT NOT NULL,
+		verified_by BIGINT REFERENCES users(id) ON DELETE SET NULL,  -- agent who verified
+		verified_at TIMESTAMP,
+		attempts	INT NOT NULL DEFAULT 0,
+		expires_at  TIMESTAMP NOT NULL DEFAULT NOW() + INTERVAL '10 minutes',
+		created_at  TIMESTAMP DEFAULT NOW()
 	);
 
 	CREATE OR REPLACE FUNCTION enum_master_id()

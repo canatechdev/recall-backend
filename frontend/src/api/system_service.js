@@ -207,8 +207,21 @@ export const delete_model_config = (id) => {
     return api.delete('api/sell/configs/' + id)
 }
 
-export const get_sell_questions = () => {
-    return api.get('api/sell/questions')
+export const get_sell_questions = (params = {}) => {
+    const qs = new URLSearchParams()
+    if (params?.context) qs.set('context', params.context)
+    const suffix = qs.toString() ? `?${qs.toString()}` : ''
+    return api.get('api/sell/questions' + suffix)
+}
+
+export const get_sell_question_contexts = () => {
+    return api.get('api/sell/question-contexts')
+}
+
+export const upload_sell_image = (formData) => {
+    return api.post('api/sell/images', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    })
 }
 export const get_sell_questions_by_category = (category_id) => {
     return api.get('api/sell/questions/category/' + category_id)
@@ -258,8 +271,11 @@ export const unmap_question_from_category = (category_id, question_id) => {
 
 // ── Sell Flow: Questions + Price ─────────────────────────────
 
-export const get_sell_flow_questions = (category_slug) => {
-    return api.get('api/sell/flow/' + category_slug)
+export const get_sell_flow_questions = (category_slug, params = {}) => {
+    const qs = new URLSearchParams()
+    if (params?.context) qs.set('context', params.context)
+    const suffix = qs.toString() ? `?${qs.toString()}` : ''
+    return api.get('api/sell/flow/' + category_slug + suffix)
 }
 export const calculate_sell_price = (data) => {
     return api.post('api/sell/calculate-price', data)

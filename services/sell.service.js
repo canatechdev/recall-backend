@@ -1,5 +1,41 @@
 const pool = require('../config/database');
 
+const QUESTION_CONTEXT_MASTER = 'question_context';
+
+const parseOptionalInt = (v) => {
+    if (v === undefined || v === null || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.trunc(n) : null;
+};
+
+const normalizeContextSlug = (v) => {
+    if (v === undefined || v === null) return null;
+    const s = String(v).trim().toLowerCase();
+    return s ? s : null;
+};
+
+const resolveQuestionContextId = async ({ context, context_id, context_slug } = {}) => {
+    const explicitId = parseOptionalInt(context_id ?? (typeof context === 'number' ? context : null));
+    if (explicitId != null) {
+        const ok = await pool.query(
+            `SELECT id, option_name FROM enum_master WHERE master_name=$1 AND id=$2`,
+            [QUESTION_CONTEXT_MASTER, explicitId],
+        );
+        if (ok.rowCount === 0) throw { status: 400, message: 'Invalid context_id' };
+        return ok.rows[0].id;
+    }
+
+    const slug = normalizeContextSlug(context_slug ?? (typeof context === 'string' ? context : null));
+    if (!slug) return null;
+
+    const res = await pool.query(
+        `SELECT id, option_name FROM enum_master WHERE master_name=$1 AND option_name=$2`,
+        [QUESTION_CONTEXT_MASTER, slug],
+    );
+    if (res.rowCount === 0) throw { status: 400, message: 'Invalid context' };
+    return res.rows[0].id;
+};
+
 // ── Model Configs ─────────────────────────────────────────
 
 exports.getModelConfigs = async ({ model_slug }) => {
@@ -63,7 +99,9 @@ exports.deleteModelConfig = async (id) => {
 
 // ── Sell Questions ────────────────────────────────────────
 
-exports.getQuestions = async () => {
+exports.getQuestions = async (query = {}) => {
+    const contextId = await resolveQuestionContextId(query);
+
     // Ensure yes/no questions always have backing options in DB (idempotent backfill)
     await pool.query(
         `WITH missing AS (
@@ -71,6 +109,7 @@ exports.getQuestions = async () => {
             FROM sell_questions q
             WHERE q.input_type = 'yes_no'
               AND q.is_active = true
+              ${contextId != null ? 'AND q.context = $1' : ''}
               AND NOT EXISTS (
                 SELECT 1 FROM sell_question_options o WHERE o.question_id = q.id
               )
@@ -78,21 +117,34 @@ exports.getQuestions = async () => {
         INSERT INTO sell_question_options (question_id, text, price_deduction, sort_index)
         SELECT id, 'Yes', 0, 1 FROM missing
         UNION ALL
-        SELECT id, 'No', 0, 2 FROM missing`
+        SELECT id, 'No', 0, 2 FROM missing`,
+        contextId != null ? [contextId] : []
     );
+
+    const values = [];
+    let where = `WHERE que.is_active=true`;
+    if (contextId != null) {
+        values.push(contextId);
+        where += ` AND que.context=$${values.length}`;
+    }
 
     const questions = await pool.query(
         `
             SELECT  que.id,
                     que.text,
+                    que.description,
                     que.sort_index,
                     que.input_type,
+                    que.context,
+                    qctx.option_name context_label,
                         (
                             SELECT jsonb_agg(
                                 jsonb_build_object(
                                     'id', qo.id,
                                     'text', qo.text,
                                     'deduction', qo.price_deduction,
+                                    'option_image_id', qo.option_image_id,
+                                    'option_image_url', img.url,
                                     'show',
                                     COALESCE(
                                         (
@@ -103,6 +155,7 @@ exports.getQuestions = async () => {
                                 )
                             )
                             FROM sell_question_options qo
+                            LEFT JOIN images img ON qo.option_image_id=img.id
                             WHERE qo.question_id = que.id
                         ) options,
                         (
@@ -117,11 +170,35 @@ exports.getQuestions = async () => {
                             WHERE scq.question_id=que.id
                         ) categories
             FROM sell_questions que
-            WHERE que.is_active=true
+            LEFT JOIN enum_master qctx ON que.context=qctx.id AND qctx.master_name='question_context'
+            ${where}
             ORDER BY que.sort_index, que.id
-        `
+        `,
+        values,
     );
     return questions.rows;
+};
+
+exports.getQuestionContexts = async () => {
+    const result = await pool.query(
+        `SELECT id, option_name, sort_index
+         FROM enum_master
+         WHERE master_name=$1
+         ORDER BY sort_index, id`,
+        [QUESTION_CONTEXT_MASTER],
+    );
+    return result.rows;
+};
+
+exports.uploadImage = async ({ file, alt_text, uploaded_by } = {}) => {
+    if (!file?.filename) throw { status: 400, message: 'Image file is required (field: image)' };
+    const res = await pool.query(
+        `INSERT INTO images(url, alt_text, uploaded_by)
+         VALUES ($1,$2,$3)
+         RETURNING id, url, alt_text`,
+        [file.filename, alt_text || null, uploaded_by || null],
+    );
+    return res.rows[0];
 };
 exports.getQuestionsByModel = async ({ modelSlug }) => {
     if (!modelSlug) throw { status: 400, message: "Model Slug is required" };
@@ -132,6 +209,8 @@ exports.getQuestionsByModel = async ({ modelSlug }) => {
                     'id', que.id,
                     'question', que.text,
                     'que_type', que.input_type,
+                    'context', que.context,
+                    'context_label', qctx.option_name,
                     'options',
                         (
                             SELECT jsonb_agg(
@@ -139,6 +218,8 @@ exports.getQuestionsByModel = async ({ modelSlug }) => {
                                     'id', qo.id,
                                     'text', qo.text,
                                     'deduction', qo.price_deduction,
+                                    'option_image_id', qo.option_image_id,
+                                    'option_image_url', img.url,
                                     'show',
                                     COALESCE(
                                         (
@@ -149,12 +230,14 @@ exports.getQuestionsByModel = async ({ modelSlug }) => {
                                 )
                             )
                             FROM sell_question_options qo
+                            LEFT JOIN images img ON qo.option_image_id=img.id
                             WHERE qo.question_id = que.id
                     )
                 )
             ) questions FROM models m
             JOIN sell_category_questions cq ON cq.category_id=m.category_id
             JOIN sell_questions que ON que.id=cq.question_id
+            LEFT JOIN enum_master qctx ON que.context=qctx.id AND qctx.master_name='question_context'
             WHERE m.slug=$1
             GROUP BY m.name
         `,
@@ -167,9 +250,11 @@ exports.getQuestionsByCategory = async (category_id) => {
     if (!category_id) throw { status: 400, message: "Category ID is required" };
     const questions = await pool.query(
         `SELECT sq.id, sq.text, sq.description, sq.input_type, sq.sort_index, sq.is_active,
+                sq.context, qctx.option_name context_label,
                 scq.sort_index category_sort
          FROM sell_questions sq
          JOIN sell_category_questions scq ON sq.id=scq.question_id
+         LEFT JOIN enum_master qctx ON sq.context=qctx.id AND qctx.master_name='question_context'
          WHERE scq.category_id=$1 AND sq.is_active=true
          ORDER BY scq.sort_index, sq.id`,
         [category_id]
@@ -177,8 +262,10 @@ exports.getQuestionsByCategory = async (category_id) => {
 
     for (const q of questions.rows) {
         const opts = await pool.query(
-            `SELECT id, text, price_deduction, sort_index
-             FROM sell_question_options
+            `SELECT sqo.id, sqo.text, sqo.price_deduction, sqo.sort_index,
+                    sqo.option_image_id, img.url option_image_url
+             FROM sell_question_options sqo
+             LEFT JOIN images img ON sqo.option_image_id=img.id
              WHERE question_id=$1
              ORDER BY sort_index, id`,
             [q.id]
@@ -193,6 +280,8 @@ exports.createQuestion = async (data) => {
     const { text, description, input_type, sort_index, category_slugs } = data;
     if (!text || !input_type) throw { status: 400, message: "text and input_type are required" };
 
+    const resolvedContextId = (await resolveQuestionContextId(data)) ?? 1;
+
     const validTypes = ['yes_no', 'single_select', 'multi_select'];
     if (!validTypes.includes(input_type)) throw { status: 400, message: "input_type must be one of: " + validTypes.join(', ') };
 
@@ -201,9 +290,10 @@ exports.createQuestion = async (data) => {
         await client.query('BEGIN');
 
         const result = await client.query(
-            `INSERT INTO sell_questions(text, description, input_type, sort_index)
-             VALUES ($1, $2, $3, $4) RETURNING id, text, description, input_type, sort_index, is_active`,
-            [text, description || null, input_type, sort_index || 1]
+            `INSERT INTO sell_questions(text, description, input_type, context, sort_index)
+             VALUES ($1, $2, $3, $4, $5)
+             RETURNING id, text, description, input_type, context, sort_index, is_active`,
+            [text, description || null, input_type, resolvedContextId, sort_index || 1]
         );
         const question = result.rows[0];
 
@@ -246,16 +336,27 @@ exports.createQuestion = async (data) => {
 
 exports.updateQuestion = async (id, data) => {
     const { text, description, input_type, sort_index, is_active } = data;
+    const contextId = await resolveQuestionContextId(data);
+
     const result = await pool.query(
         `UPDATE sell_questions
          SET text=COALESCE($1, text),
              description=COALESCE($2, description),
              input_type=COALESCE($3, input_type),
-             sort_index=COALESCE($4, sort_index),
-             is_active=COALESCE($5, is_active)
-         WHERE id=$6
-         RETURNING id, text, description, input_type, sort_index, is_active`,
-        [text || null, description !== undefined ? description : null, input_type || null, sort_index || null, is_active != null ? is_active : null, id]
+             context=COALESCE($4, context),
+             sort_index=COALESCE($5, sort_index),
+             is_active=COALESCE($6, is_active)
+         WHERE id=$7
+         RETURNING id, text, description, input_type, context, sort_index, is_active`,
+        [
+            text || null,
+            description !== undefined ? description : null,
+            input_type || null,
+            contextId,
+            sort_index || null,
+            is_active != null ? is_active : null,
+            id,
+        ]
     );
     if (result.rowCount === 0) throw { status: 404, message: "Question not found" };
 
@@ -293,40 +394,52 @@ exports.deleteQuestion = async (id) => {
 
 exports.getQuestionOptions = async (question_id) => {
     const result = await pool.query(
-        `SELECT id, text, price_deduction, sort_index
-         FROM sell_question_options
-         WHERE question_id=$1
-         ORDER BY sort_index, id`,
+        `SELECT sqo.id, sqo.text, sqo.price_deduction, sqo.sort_index,
+                sqo.option_image_id, img.url option_image_url
+         FROM sell_question_options sqo
+         LEFT JOIN images img ON sqo.option_image_id=img.id
+         WHERE sqo.question_id=$1
+         ORDER BY sqo.sort_index, sqo.id`,
         [question_id]
     );
     return result.rows;
 };
 
 exports.createQuestionOption = async (data) => {
-    const { question_id, text, price_deduction, sort_index } = data;
+    const { question_id, text, price_deduction, sort_index, option_image_id } = data;
     if (!question_id || !text) throw { status: 400, message: "question_id and text are required" };
 
     const qExists = await pool.query(`SELECT 1 FROM sell_questions WHERE id=$1`, [question_id]);
     if (qExists.rowCount === 0) throw { status: 404, message: "Question not found" };
 
     const result = await pool.query(
-        `INSERT INTO sell_question_options(question_id, text, price_deduction, sort_index)
-         VALUES ($1, $2, $3, $4) RETURNING id, text, price_deduction, sort_index`,
-        [question_id, text, price_deduction || 0, sort_index || 1]
+        `INSERT INTO sell_question_options(question_id, text, price_deduction, option_image_id, sort_index)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, text, price_deduction, option_image_id, sort_index`,
+        [question_id, text, price_deduction || 0, option_image_id ?? null, sort_index || 1]
     );
     return result.rows[0];
 };
 
 exports.updateQuestionOption = async (id, data) => {
-    const { text, price_deduction, sort_index } = data;
+    const { text, price_deduction, sort_index, option_image_id } = data;
+    const hasOptionImageId = Object.prototype.hasOwnProperty.call(data || {}, 'option_image_id');
     const result = await pool.query(
         `UPDATE sell_question_options
          SET text=COALESCE($1, text),
              price_deduction=COALESCE($2, price_deduction),
-             sort_index=COALESCE($3, sort_index)
-         WHERE id=$4
-         RETURNING id, text, price_deduction, sort_index`,
-        [text || null, price_deduction != null ? price_deduction : null, sort_index || null, id]
+             option_image_id=CASE WHEN $3 THEN $4 ELSE option_image_id END,
+             sort_index=COALESCE($5, sort_index)
+         WHERE id=$6
+         RETURNING id, text, price_deduction, option_image_id, sort_index`,
+        [
+            text || null,
+            price_deduction != null ? price_deduction : null,
+            hasOptionImageId,
+            hasOptionImageId ? (option_image_id ?? null) : null,
+            sort_index || null,
+            id,
+        ]
     );
     if (result.rowCount === 0) throw { status: 404, message: "Option not found" };
     return result.rows[0];
@@ -375,7 +488,8 @@ exports.createCondition = async (data) => {
 
     const result = await pool.query(
         `INSERT INTO sell_question_conditions(trigger_option_id, show_question_id)
-         VALUES ($1, $2) RETURNING id, trigger_option_id, show_question_id`,
+         VALUES ($1, $2)
+         RETURNING id, trigger_option_id, show_question_id`,
         [trigger_option_id, show_question_id]
     );
     return result.rows[0];
@@ -440,50 +554,95 @@ exports.unmapQuestionFromCategory = async (category_id, question_id) => {
 
 // ── Sell Flow: Questions with Conditions for a Category ─────
 
-exports.getQuestionsByCategorySlug = async (category_slug) => {
+exports.getQuestionsByCategorySlug = async (category_slug, query = {}) => {
     if (!category_slug) throw { status: 400, message: "category_slug is required" };
+
+    const requestedContextId = await resolveQuestionContextId(query);
+    let flowContextIds = null; // null => no context filter
+    if (requestedContextId != null) {
+        const ctxRes = await pool.query(
+            `SELECT option_name FROM enum_master WHERE master_name=$1 AND id=$2`,
+            [QUESTION_CONTEXT_MASTER, requestedContextId],
+        );
+        if (ctxRes.rowCount === 0) throw { status: 400, message: 'Invalid context' };
+        const ctx = String(ctxRes.rows[0].option_name || '').toLowerCase();
+        if (ctx === 'sell' || ctx === 'inspection') {
+            const bothRes = await pool.query(
+                `SELECT id FROM enum_master WHERE master_name=$1 AND option_name='both'`,
+                [QUESTION_CONTEXT_MASTER],
+            );
+            const bothId = bothRes.rowCount ? bothRes.rows[0].id : null;
+            flowContextIds = bothId != null ? [requestedContextId, bothId] : [requestedContextId];
+        } else {
+            flowContextIds = [requestedContextId];
+        }
+    }
 
     const catRes = await pool.query(`SELECT id FROM categories WHERE slug=$1`, [category_slug]);
     if (catRes.rowCount === 0) throw { status: 404, message: "Category not found" };
     const category_id = catRes.rows[0].id;
 
     // Ensure yes/no questions used in sell flow have options (idempotent backfill)
-    await pool.query(
-        `WITH missing AS (
-                        SELECT sq.id
-                        FROM sell_questions sq
-                        JOIN sell_category_questions scq ON scq.question_id = sq.id
-                        WHERE scq.category_id = $1
-                            AND sq.is_active = true
-                            AND sq.input_type = 'yes_no'
-                            AND NOT EXISTS (
-                                SELECT 1 FROM sell_question_options o WHERE o.question_id = sq.id
-                            )
-                )
-                INSERT INTO sell_question_options (question_id, text, price_deduction, sort_index)
-                SELECT id, 'Yes', 0, 1 FROM missing
-                UNION ALL
-                SELECT id, 'No', 0, 2 FROM missing`,
-        [category_id]
-    );
+    {
+        const values = [category_id];
+        let contextClause = '';
+        if (flowContextIds && flowContextIds.length > 0) {
+            values.push(flowContextIds);
+            contextClause = ` AND sq.context = ANY($${values.length}::INT[])`;
+        }
+
+        await pool.query(
+            `WITH missing AS (
+                SELECT sq.id
+                FROM sell_questions sq
+                JOIN sell_category_questions scq ON scq.question_id = sq.id
+                WHERE scq.category_id = $1
+                  AND sq.is_active = true
+                  AND sq.input_type = 'yes_no'
+                  ${contextClause}
+                  AND NOT EXISTS (
+                    SELECT 1 FROM sell_question_options o WHERE o.question_id = sq.id
+                  )
+            )
+            INSERT INTO sell_question_options (question_id, text, price_deduction, sort_index)
+            SELECT id, 'Yes', 0, 1 FROM missing
+            UNION ALL
+            SELECT id, 'No', 0, 2 FROM missing`,
+            values,
+        );
+    }
 
     // Get top-level questions for this category
-    const questions = await pool.query(
-        `SELECT sq.id, sq.text, sq.description, sq.input_type, sq.sort_index
-         FROM sell_questions sq
-         JOIN sell_category_questions scq ON sq.id=scq.question_id
-         WHERE scq.category_id=$1 AND sq.is_active=true
-         ORDER BY scq.sort_index, sq.id`,
-        [category_id]
-    );
+    {
+        const values = [category_id];
+        let contextClause = '';
+        if (flowContextIds && flowContextIds.length > 0) {
+            values.push(flowContextIds);
+            contextClause = ` AND sq.context = ANY($${values.length}::INT[])`;
+        }
+
+        var questions = await pool.query(
+            `SELECT sq.id, sq.text, sq.description, sq.input_type, sq.sort_index,
+                    sq.context, qctx.option_name context_label
+             FROM sell_questions sq
+             JOIN sell_category_questions scq ON sq.id=scq.question_id
+             LEFT JOIN enum_master qctx ON sq.context=qctx.id AND qctx.master_name='question_context'
+             WHERE scq.category_id=$1 AND sq.is_active=true
+             ${contextClause}
+             ORDER BY scq.sort_index, sq.id`,
+            values,
+        );
+    }
 
     // For each question get options + conditions
     for (const q of questions.rows) {
         const opts = await pool.query(
-            `SELECT id, text, price_deduction, sort_index
-             FROM sell_question_options
-             WHERE question_id=$1
-             ORDER BY sort_index, id`,
+            `SELECT sqo.id, sqo.text, sqo.price_deduction, sqo.sort_index,
+                    sqo.option_image_id, img.url option_image_url
+             FROM sell_question_options sqo
+             LEFT JOIN images img ON sqo.option_image_id=img.id
+             WHERE sqo.question_id=$1
+             ORDER BY sqo.sort_index, sqo.id`,
             [q.id]
         );
         q.options = opts.rows;
@@ -515,16 +674,33 @@ exports.getQuestionsByCategorySlug = async (category_slug) => {
 
     const conditionalQuestions = [];
     for (const qId of extraIds) {
-        const qRes = await pool.query(
-            `SELECT id, text, description, input_type, sort_index
-             FROM sell_questions WHERE id=$1 AND is_active=true`,
-            [qId]
-        );
+        {
+            const values = [qId];
+            let contextClause = '';
+            if (flowContextIds && flowContextIds.length > 0) {
+                values.push(flowContextIds);
+                contextClause = ` AND context = ANY($${values.length}::INT[])`;
+            }
+
+            var qRes = await pool.query(
+                `SELECT sq.id, sq.text, sq.description, sq.input_type, sq.sort_index,
+                        sq.context, qctx.option_name context_label
+                 FROM sell_questions sq
+                 LEFT JOIN enum_master qctx ON sq.context=qctx.id AND qctx.master_name='question_context'
+                 WHERE sq.id=$1 AND sq.is_active=true
+                 ${contextClause}`,
+                values,
+            );
+        }
         if (qRes.rowCount === 0) continue;
         const cq = qRes.rows[0];
         const opts = await pool.query(
-            `SELECT id, text, price_deduction, sort_index
-             FROM sell_question_options WHERE question_id=$1 ORDER BY sort_index, id`,
+            `SELECT sqo.id, sqo.text, sqo.price_deduction, sqo.sort_index,
+                    sqo.option_image_id, img.url option_image_url
+             FROM sell_question_options sqo
+             LEFT JOIN images img ON sqo.option_image_id=img.id
+             WHERE sqo.question_id=$1
+             ORDER BY sqo.sort_index, sqo.id`,
             [cq.id]
         );
         cq.options = opts.rows;
@@ -621,9 +797,12 @@ exports.createSellListing = async (data) => {
         // Each price_deduction is a flat amount to subtract
         for (const ans of answers) {
             for (const opt of ans.options) {
+                const optionId = (opt && typeof opt === 'object')
+                    ? (opt.option_id ?? opt.optionId ?? opt.id)
+                    : opt;
                 const optRes = await client.query(
                     `SELECT price_deduction FROM sell_question_options WHERE id=$1 AND question_id=$2`,
-                    [opt, ans.question_id]
+                    [optionId, ans.question_id]
                 );
                 // console.log("deva", ans, opt, optRes.rows);
                 if (optRes.rowCount > 0) {
@@ -646,10 +825,16 @@ exports.createSellListing = async (data) => {
         // Insert answers
         for (const ans of answers) {
             for (const opt of ans.options) {
+                const optionId = (opt && typeof opt === 'object')
+                    ? (opt.option_id ?? opt.optionId ?? opt.id)
+                    : opt;
+                const answerImageId = (opt && typeof opt === 'object')
+                    ? (opt.answer_image_id ?? opt.answerImageId ?? null)
+                    : null;
                 await client.query(
-                    `INSERT INTO sell_listing_answers(listing_id, question_id, option_id)
-                 VALUES ($1, $2, $3)`,
-                    [listing_id, ans.question_id, opt]
+                    `INSERT INTO sell_listing_answers(listing_id, question_id, option_id, answer_image_id)
+                     VALUES ($1, $2, $3, $4)`,
+                    [listing_id, ans.question_id, optionId, answerImageId]
                 );
             }
         }
@@ -757,10 +942,16 @@ exports.getListingDetails = async (listing_id) => {
                sla.option_id,
                sqo.text option_text,
                sqo.price_deduction option_price_deduction,
-               sqo.sort_index option_sort_index
+               sqo.sort_index option_sort_index,
+               sqo.option_image_id option_image_id,
+               oi.url option_image_url,
+               sla.answer_image_id answer_image_id,
+               ai.url answer_image_url
         FROM sell_listing_answers sla
         JOIN sell_questions sq ON sq.id=sla.question_id
         JOIN sell_question_options sqo ON sqo.id=sla.option_id
+        LEFT JOIN images oi ON sqo.option_image_id=oi.id
+        LEFT JOIN images ai ON sla.answer_image_id=ai.id
         WHERE sla.listing_id=$1
         ORDER BY sq.sort_index, sq.id, sqo.sort_index, sqo.id
         `,
@@ -808,6 +999,10 @@ exports.getListingDetails = async (listing_id) => {
             text: r.option_text,
             price_deduction: r.option_price_deduction,
             sort_index: r.option_sort_index,
+            option_image_id: r.option_image_id,
+            option_image_url: r.option_image_url,
+            answer_image_id: r.answer_image_id,
+            answer_image_url: r.answer_image_url,
         });
     }
 
@@ -920,6 +1115,8 @@ exports.assignListing = async (listing_id, merchant_id) => {
          RETURNING id`,
         [merchant_id, listing_id]
     );
+    // await pool.query(`UPDATE sell_pickups SET status=2, assigned_agent_id=$2, updated_at=NOW() WHERE listing_id=$1`, [listing_id, merchant_id]);
+
     if (result.rowCount === 0) throw { status: 404, message: "Listing not found or not in pending status" };
     return result.rows[0];
 };
@@ -958,7 +1155,7 @@ exports.schedulePickup = async ({ user_id, listing_id, address_id, pickup_date, 
     const isValid = await pool.query(`SELECT 1 FROM users u
         JOIN sell_listings sl ON u.id=sl.user_id
         WHERE sl.id=$1 AND u.id=$2`, [listing_id, user_id]);
-        
+
     if (0 === isValid.rowCount) throw { status: 404, message: "Invalid Sell Listing" }
     const result = await pool.query(`INSERT INTO sell_pickups(listing_id, address_id, pickup_date, pickup_slot_start, pickup_slot_end, notes) VALUES($1, $2, $3, $4, $5, $6)
     RETURNING *`, [listing_id, address_id, pickup_date, pickup_slot_start, pickup_slot_end, notes])

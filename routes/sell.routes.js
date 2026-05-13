@@ -3,6 +3,7 @@ const router = express.Router();
 const { reqBody } = require('../middlewares/req_body.middleware');
 const sellController = require('../controllers/sell.controller');
 const authMiddleware = require('../middlewares/auth.middleware');
+const upload = require('../config/multer.config');
 
 // Model Configs
 router.get('/configs/:model_slug', sellController.getModelConfigs);
@@ -12,11 +13,15 @@ router.delete('/configs/:id', sellController.deleteModelConfig);
 
 // Questions
 router.get('/questions', sellController.getQuestions);
+router.get('/question-contexts', sellController.getQuestionContexts);
 router.get('/questions/:modelSlug', sellController.getQuestionsByModel);
 router.get('/questions/category/:category_id', sellController.getQuestionsByCategory);
 router.post('/questions', reqBody, sellController.createQuestion);
 router.put('/questions/:id', reqBody, sellController.updateQuestion);
 router.delete('/questions/:id', sellController.deleteQuestion);
+
+// Images (used by option_image_id / answer_image_id)
+router.post('/images', upload.single('image'), sellController.uploadImage);
 
 // Question Options
 router.get('/options/:question_id', sellController.getQuestionOptions);

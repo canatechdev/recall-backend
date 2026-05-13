@@ -9,7 +9,8 @@ import {
     get_sell_questions, create_sell_question, update_sell_question, delete_sell_question,
     create_question_option, update_question_option, delete_question_option,
     get_question_conditions, create_question_condition, delete_question_condition,
-    get_categories, map_question_to_category, unmap_question_from_category
+    get_categories, map_question_to_category, unmap_question_from_category,
+    get_sell_question_contexts, upload_sell_image
 } from "../../../api/system_service";
 
 const INPUT_TYPES = [
@@ -17,6 +18,20 @@ const INPUT_TYPES = [
     { value: "single_select", label: "Single Select" },
     { value: "multi_select", label: "Multi Select" },
 ];
+
+const DEFAULT_CONTEXTS = [
+    { id: 1, option_name: 'sell' },
+    { id: 2, option_name: 'inspection' },
+    { id: 3, option_name: 'both' },
+]
+
+const contextBadge = (slug) => {
+    const raw = String(slug ?? '').trim().toLowerCase()
+    const s = (raw === '1') ? 'sell' : (raw === '2') ? 'inspection' : (raw === '3') ? 'both' : raw
+    const map = { sell: 'bg-success', inspection: 'bg-secondary', both: 'bg-dark' }
+    if (!s) return null
+    return <span className={`badge ${map[s] || 'bg-light text-dark border'}`} style={{ fontSize: '0.68rem' }}>{s}</span>
+}
 
 // yes_no placeholder options — shown when DB options haven't loaded yet
 const YES_NO_DEFAULTS = [
@@ -36,6 +51,8 @@ const normalizeOption = (o = {}) => ({
     price_deduction: Number(o.price_deduction ?? o.deduction ?? 0),
     sort_index: o.sort_index ?? 0,
     show: Array.isArray(o.show) ? o.show.map(String) : [],
+    option_image_id: o.option_image_id ?? null,
+    option_image_url: o.option_image_url ?? null,
 });
 
 /**
@@ -48,6 +65,7 @@ const normalizeQuestion = (q = {}) => ({
     text: q.text ?? "",
     description: q.description ?? "",
     input_type: q.input_type ?? "single_select",
+    context_label: q.context_label ?? q.context_slug ?? q.context ?? null,
     sort_index: q.sort_index ?? q.index ?? 0,
     options: Array.isArray(q.options) ? q.options.map(normalizeOption) : [],
     categories: Array.isArray(q.categories) ? q.categories : [],
@@ -75,6 +93,8 @@ export default function SellQuestions() {
 
     const [questions, setQuestions] = useState([]);
     const [categories, setCategories] = useState([]);
+    const [contexts, setContexts] = useState(DEFAULT_CONTEXTS)
+    const [activeContext, setActiveContext] = useState('sell') // sell | inspection | both
     const [loading, setLoading] = useState(false);
     const [showAdd, setShowAdd] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -82,10 +102,10 @@ export default function SellQuestions() {
 
     // Inline edit state
     const [editingId, setEditingId] = useState(null);
-    const [editData, setEditData] = useState({ text: "", description: "", input_type: "single_select", sort_index: 1 });
+    const [editData, setEditData] = useState({ text: "", description: "", input_type: "single_select", context: 'sell', sort_index: 1 });
 
     // Add question form
-    const [newQ, setNewQ] = useState({ text: "", description: "", input_type: "yes_no", category_slugs: [] });
+    const [newQ, setNewQ] = useState({ text: "", description: "", input_type: "yes_no", context: 'sell', category_slugs: [] });
     const [addAttempted, setAddAttempted] = useState(false);
 
     // Options â€” shared add form; keyed by expanded question
@@ -93,6 +113,11 @@ export default function SellQuestions() {
     const [savingOpt, setSavingOpt] = useState(false);
     const [optDeductionDraft, setOptDeductionDraft] = useState({});
     const [savingDeductionId, setSavingDeductionId] = useState(null);
+
+    // Option image attach
+    const [optImageTargetId, setOptImageTargetId] = useState("")
+    const [optImageFile, setOptImageFile] = useState(null)
+    const [uploadingOptImage, setUploadingOptImage] = useState(false)
 
     // Condition add form
     const [newCond, setNewCond] = useState({ trigger_option_id: "", show_question_id: "" });
@@ -107,9 +132,18 @@ export default function SellQuestions() {
     const [filterConditional, setFilterConditional] = useState(""); // "" | "yes" | "no"
 
     useEffect(() => {
-        fetchQuestions();
         fetchCategories();
+        fetchContexts();
     }, []);
+
+    useEffect(() => {
+        fetchQuestions();
+        setExpandedId(null)
+        setEditingId(null)
+        setShowAdd(false)
+        setAddAttempted(false)
+        setNewQ(p => ({ ...p, context: activeContext }))
+    }, [activeContext]);
 
     //  Derived data 
 
@@ -196,7 +230,7 @@ export default function SellQuestions() {
     const fetchQuestions = async () => {
         try {
             setLoading(true);
-            const res = await get_sell_questions();
+            const res = await get_sell_questions({ context: activeContext });
             const raw = Array.isArray(res.data) ? res.data : [];
             setQuestions(raw.map(normalizeQuestion));
         } catch (e) {
@@ -206,6 +240,19 @@ export default function SellQuestions() {
             setLoading(false);
         }
     };
+
+    const fetchContexts = async () => {
+        try {
+            const res = await get_sell_question_contexts()
+            const raw = Array.isArray(res.data) ? res.data : []
+            const cleaned = raw
+                .map(r => ({ id: r.id, option_name: String(r.option_name || '').toLowerCase() }))
+                .filter(r => !!r.option_name)
+            setContexts(cleaned.length ? cleaned : DEFAULT_CONTEXTS)
+        } catch (e) {
+            setContexts(DEFAULT_CONTEXTS)
+        }
+    }
 
     const fetchCategories = async () => {
         try {
@@ -220,6 +267,7 @@ export default function SellQuestions() {
         text: (data.text ?? "").trim(),
         description: (data.description ?? "").trim() || null,
         input_type: data.input_type,
+        context: data.context || activeContext,
         sort_index: parseInt(sortIndex) || 1,
         category_slugs: Array.isArray(data.category_slugs) ? data.category_slugs : [],
     });
@@ -238,7 +286,7 @@ export default function SellQuestions() {
                 : 0) + 1;
             await create_sell_question(buildQuestionPayload(newQ, nextSortIndex));
             setShowAdd(false);
-            setNewQ({ text: "", description: "", input_type: "yes_no", category_slugs: [] });
+            setNewQ({ text: "", description: "", input_type: "yes_no", context: activeContext, category_slugs: [] });
             setAddAttempted(false);
             showToast('success', 'Question created');
             fetchQuestions();
@@ -271,6 +319,7 @@ export default function SellQuestions() {
             text: q.text ?? "",
             description: q.description ?? "",
             input_type: q.input_type ?? "single_select",
+            context: String(q.context_label || q.context || activeContext).toLowerCase(),
             sort_index: q.sort_index ?? 1,
         });
     };
@@ -306,11 +355,15 @@ export default function SellQuestions() {
         const qId = String(q.id);
         if (expandedId === qId) {
             setExpandedId(null);
+            setOptImageTargetId("")
+            setOptImageFile(null)
         } else {
             setExpandedId(qId);
             setEditingId(null);
             setNewOpt({ text: "", price_deduction: 0 });
             setNewCond({ trigger_option_id: "", show_question_id: "" });
+            setOptImageTargetId("")
+            setOptImageFile(null)
             // Prime drafts for option deductions
             const nextDrafts = {};
             (getEffectiveOptions(q) ?? []).forEach(o => {
@@ -354,6 +407,43 @@ export default function SellQuestions() {
             fetchQuestions();
         } catch (e) {
             showToast('danger', e?.response?.data?.message || 'Failed to delete option');
+        }
+    };
+
+    const handleAttachOptionImage = async () => {
+        if (!optImageTargetId) return showToast('danger', 'Select an option to attach image');
+        if (!optImageFile) return showToast('danger', 'Choose an image file');
+        try {
+            setUploadingOptImage(true);
+            const fd = new FormData();
+            fd.append('image', optImageFile);
+            fd.append('alt_text', 'Sell option image');
+            const imgRes = await upload_sell_image(fd);
+            const imageId = imgRes?.data?.id;
+            if (!imageId) throw new Error('Upload did not return image id');
+
+            await update_question_option(optImageTargetId, { option_image_id: imageId });
+            showToast('success', 'Option image attached');
+            setOptImageFile(null);
+            fetchQuestions();
+        } catch (e) {
+            showToast('danger', e?.response?.data?.message || e?.message || 'Failed to attach option image');
+        } finally {
+            setUploadingOptImage(false);
+        }
+    };
+
+    const handleClearOptionImage = async (optId) => {
+        if (!optId) return;
+        try {
+            setUploadingOptImage(true);
+            await update_question_option(optId, { option_image_id: null });
+            showToast('success', 'Option image cleared');
+            fetchQuestions();
+        } catch (e) {
+            showToast('danger', e?.response?.data?.message || 'Failed to clear option image');
+        } finally {
+            setUploadingOptImage(false);
         }
     };
 
@@ -545,6 +635,25 @@ export default function SellQuestions() {
                             </div>
                         </div>
 
+                        <div className="mt-2 d-flex flex-wrap gap-2 align-items-center">
+                            {(contexts.length ? contexts : DEFAULT_CONTEXTS).map(ctx => {
+                                const slug = String(ctx.option_name || '').toLowerCase()
+                                const isActive = slug === activeContext
+                                return (
+                                    <button
+                                        key={slug}
+                                        type="button"
+                                        className={`btn btn-sm ${isActive ? 'btn-dark' : 'btn-outline-secondary'}`}
+                                        onClick={() => setActiveContext(slug)}
+                                        disabled={loading}
+                                        title="Switch question context"
+                                    >
+                                        {slug}
+                                    </button>
+                                )
+                            })}
+                        </div>
+
                         {showAdd && (
                             <div className="border rounded p-3 mt-3 bg-white shadow-sm">
                                 <h6 className="fw-semibold mb-3">New Question</h6>
@@ -560,7 +669,7 @@ export default function SellQuestions() {
                                             onChange={e => setNewQ(p => ({ ...p, text: e.target.value }))}
                                         />
                                     </div>
-                                    <div className="col-md-3">
+                                    <div className="col-md-2">
                                         <label className="form-label small fw-semibold">Description</label>
                                         <input
                                             type="text" className="form-control form-control-sm"
@@ -579,6 +688,20 @@ export default function SellQuestions() {
                                             onChange={e => setNewQ(p => ({ ...p, input_type: e.target.value }))}
                                         >
                                             {INPUT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="col-md-2">
+                                        <label className="form-label small fw-semibold">Context</label>
+                                        <select
+                                            className="form-select form-select-sm"
+                                            value={newQ.context || activeContext}
+                                            onChange={e => setNewQ(p => ({ ...p, context: e.target.value }))}
+                                        >
+                                            {(contexts.length ? contexts : DEFAULT_CONTEXTS).map(ctx => (
+                                                <option key={ctx.option_name} value={String(ctx.option_name).toLowerCase()}>
+                                                    {String(ctx.option_name).toLowerCase()}
+                                                </option>
+                                            ))}
                                         </select>
                                     </div>
                                     <div className="col-md-2">
@@ -734,6 +857,30 @@ export default function SellQuestions() {
                         },
                     },
                     {
+                        key: 'context',
+                        label: 'Context',
+                        headerStyle: { width: 120 },
+                        render: (q) => {
+                            const qId = String(q.id)
+                            const isEditing = editingId === qId
+                            if (!isEditing) return contextBadge(q.context_label) || <span className="text-muted small">—</span>
+
+                            return (
+                                <select
+                                    className="form-select form-select-sm"
+                                    value={editData.context || activeContext}
+                                    onChange={e => setEditData(p => ({ ...p, context: e.target.value }))}
+                                >
+                                    {(contexts.length ? contexts : DEFAULT_CONTEXTS).map(ctx => (
+                                        <option key={ctx.option_name} value={String(ctx.option_name).toLowerCase()}>
+                                            {String(ctx.option_name).toLowerCase()}
+                                        </option>
+                                    ))}
+                                </select>
+                            )
+                        },
+                    },
+                    {
                         key: 'options',
                         label: 'Options',
                         render: (q) => (
@@ -862,6 +1009,7 @@ export default function SellQuestions() {
                                                         <th style={{ width: 30 }}>#</th>
                                                         <th>Text</th>
                                                         <th>Deduction (&#37;)</th>
+                                                        <th style={{ width: 86 }}>Image</th>
                                                         <th>Shows</th>
                                                         {q.input_type !== "yes_no" && <th />}
                                                     </tr>
@@ -920,6 +1068,31 @@ export default function SellQuestions() {
                                                                         </>
                                                                     )}
                                                                 </td>
+                                                                <td className="text-center">
+                                                                    {o?.option_image_url ? (
+                                                                        <div className="d-flex align-items-center justify-content-center gap-1">
+                                                                            <img
+                                                                                src={import.meta.env.VITE_API_URL + 'uploads/' + o.option_image_url}
+                                                                                alt=""
+                                                                                className="rounded border"
+                                                                                style={{ width: 44, height: 44, objectFit: 'cover' }}
+                                                                            />
+                                                                            {q.input_type !== 'yes_no' && o?.id && (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    className="btn btn-sm btn-outline-secondary p-0 px-1"
+                                                                                    onClick={() => handleClearOptionImage(o.id)}
+                                                                                    disabled={uploadingOptImage}
+                                                                                    title="Remove image"
+                                                                                >
+                                                                                    <CIcon icon={cilX} style={{ width: 14, height: 14 }} />
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <span className="text-muted small">—</span>
+                                                                    )}
+                                                                </td>
                                                                 <td>
                                                                     {showsQs.length > 0
                                                                         ? showsQs.map(sq => (
@@ -950,6 +1123,45 @@ export default function SellQuestions() {
                                             </table>
                                         );
                                     })()}
+
+                                    {q.input_type !== "yes_no" && (
+                                        <div className="border rounded p-2 bg-white mb-2">
+                                            <div className="small fw-semibold mb-1">Attach option image (optional)</div>
+                                            <div className="d-flex gap-2 align-items-center flex-wrap">
+                                                <select
+                                                    className="form-select form-select-sm"
+                                                    style={{ maxWidth: 220 }}
+                                                    value={optImageTargetId}
+                                                    onChange={e => setOptImageTargetId(e.target.value)}
+                                                >
+                                                    <option value="">Select option...</option>
+                                                    {(q.options ?? []).map(o => (
+                                                        <option key={o.id} value={o.id}>
+                                                            {o.text}{o?.option_image_url ? ' (has image)' : ''}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                <input
+                                                    type="file"
+                                                    className="form-control form-control-sm"
+                                                    accept="image/*"
+                                                    style={{ maxWidth: 260 }}
+                                                    onChange={e => setOptImageFile(e.target.files?.[0] || null)}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-sm btn-outline-success"
+                                                    onClick={handleAttachOptionImage}
+                                                    disabled={uploadingOptImage || !optImageTargetId || !optImageFile}
+                                                    title="Upload & attach"
+                                                >
+                                                    {uploadingOptImage ? 'Uploading...' : 'Attach'}
+                                                </button>
+                                            </div>
+                                            <div className="text-muted small mt-1">Uploads to Images and links via option_image_id.</div>
+                                        </div>
+                                    )}
+
                                     {q.input_type === "yes_no" ? (
                                         <p className="text-muted small mb-0">
                                             Yes / No options are system-managed and readonly — use them to wire conditions below.

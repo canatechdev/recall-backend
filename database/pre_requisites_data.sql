@@ -41,6 +41,11 @@ BEGIN;
 		(4,'pickup_status','cancelled'),
 		(5,'pickup_status','failed'),
 		
+		-- QUESTIONS CONTEXT
+		(1,'question_context','sell'),
+		(2,'question_context','inspection'),
+		(3,'question_context','both'),
+		
 		-- INVITE STATUS
 		(1,'invite_status','pending'),
 		(2,'invite_status','accepted'),
