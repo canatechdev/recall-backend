@@ -23,6 +23,7 @@ router.get('/verify_agent', merchantController.verifyMerchantAgent);
 router.post('/register_agent', reqBody, merchantController.registerMerchantAgent);
 
 router.get('/requote/questions',authMiddleware, allowRoles('merchant', 'agent'), merchantController.getRequoteQuestions);
+router.post('/requote',authMiddleware, allowRoles('merchant', 'agent'), merchantController.postRequote);
 
 
 module.exports = router;

@@ -74,3 +74,9 @@ exports.getRequoteQuestions = asyncHandler(async (req, res) => {
     const data = await merchantService.getRequoteQuestions(req.query);
     res.status(200).json(data);
 });
+
+exports.postRequote = asyncHandler(async (req, res) => {
+    // if (req.query.context && req.query.context !== "inspection") throw { status: 400, message: "Invalid context" };
+    const data = await merchantService.postRequote(req.query);
+    res.status(200).json(data);
+});

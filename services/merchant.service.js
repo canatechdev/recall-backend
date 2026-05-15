@@ -447,6 +447,10 @@ exports.getRequoteQuestions = async (query) => {
     }
 };
 
+exports.postRequote = async ({listing_id, answers}) => {
+    
+}
+
 exports.sendEmailOTP = async ({ link, email }) => {
     await sendEmail(
         email,
