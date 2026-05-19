@@ -187,8 +187,6 @@ BEGIN;
 		expires_at TIMESTAMP NOT NULL DEFAULT NOW() + INTERVAL '10 minutes',
 		created_at TIMESTAMP NOT NULL DEFAULT NOW()
 	);
-
-	
 	CREATE TABLE product_images (
 		product_id BIGINT REFERENCES product_master(id) ON DELETE CASCADE,
 		image_id BIGINT REFERENCES images(id) ON DELETE CASCADE,
@@ -196,19 +194,16 @@ BEGIN;
 		sort_index INT DEFAULT 1,
 		PRIMARY KEY (product_id, image_id)
 	);
-
 	CREATE TABLE brand_images (
 		brand_id BIGINT REFERENCES brands(id) ON DELETE CASCADE,
 		image_id BIGINT REFERENCES images(id) ON DELETE CASCADE,
 		PRIMARY KEY (brand_id, image_id)
 	);
-
 	CREATE TABLE service_images (
 		service_id BIGINT REFERENCES services(id) ON DELETE CASCADE,
 		image_id BIGINT REFERENCES images(id) ON DELETE CASCADE,
 		PRIMARY KEY (service_id, image_id)
 	);
-	
 	CREATE TABLE category_images (
 		category_id BIGINT REFERENCES categories(id) ON DELETE CASCADE,
 		image_id BIGINT REFERENCES images(id) ON DELETE CASCADE,
@@ -290,6 +285,7 @@ BEGIN;
 		created_at TIMESTAMP DEFAULT NOW(),
 		updated_at TIMESTAMP DEFAULT NOW()
 	);
+
 	CREATE TABLE merchant_agent_invites (
 		id BIGSERIAL PRIMARY KEY,
 		merchant_id  BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

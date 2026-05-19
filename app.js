@@ -22,7 +22,9 @@ const allowedOrigins = [
 
   // Production
   "http://recello.thecanatech.com",
-  "https://recello.thecanatech.com"
+  "https://recello.thecanatech.com",
+  "http://dev.recello.in",
+  "https://dev.recello.in"
 ]
 
 app.use(cors({
