@@ -149,7 +149,7 @@ const Listings = () => {
     const columns = [
         {
             key: '_rowIndex',
-            label: '#',
+            label: 'SR.NO',
             headerClassName: 'text-center',
             cellClassName: 'text-center',
             headerStyle: { width: 70 },

@@ -114,6 +114,11 @@ exports.getRoles = async (req, res) => {
     res.status(200).json(data);
 }
 
+exports.getDashboardSummary = async (req, res) => {
+    const data = await systemService.getDashboardSummary();
+    res.status(200).json(data);
+}
+
 exports.updateModel = async (req, res) => {
     const { id } = req.params;
     if (!id) throw { status: 400, message: "ID is required" }

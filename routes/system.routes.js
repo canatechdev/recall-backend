@@ -58,6 +58,9 @@ router.post('/catalog/import', excelUpload.single('file'), ExcelJS.processCatalo
 
 router.get('/get_roles', systemController.getRoles)
 
+// Dashboard
+router.get('/dashboard_summary', systemController.getDashboardSummary)
+
 
 router.get('/series/:brand_slug', systemController.getModelSeries)
 router.post('/series', reqBody, systemController.createSeries)

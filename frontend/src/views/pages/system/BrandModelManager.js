@@ -72,38 +72,53 @@ function InlineForm({ fields, onSave, onCancel, loading }) {
                             {f.required && <span className="text-danger"> *</span>}
                         </label>
                         {f.type === "select" ? (
-                            <select
-                                className={`form-select form-select-sm ${attempted && requiredMissing(f) ? "is-invalid" : ""}`}
-                                value={vals[f.key]}
-                                onChange={(e) => set(f.key, e.target.value)}
-                            >
+                            <>
+                                <select
+                                    className={`form-select form-select-sm ${attempted && requiredMissing(f) ? "is-invalid" : ""}`}
+                                    value={vals[f.key]}
+                                    onChange={(e) => set(f.key, e.target.value)}
+                                >
                                 {f.options.map((o) => (
                                     <option key={o.value ?? o} value={o.value ?? o}>
                                         {o.label ?? o}
                                     </option>
                                 ))}
-                            </select>
+                                </select>
+                                {attempted && requiredMissing(f) ? (
+                                    <div className="invalid-feedback">{f.label} is required.</div>
+                                ) : null}
+                            </>
                         ) : f.type === "file" ? (
-                            <input
-                                type="file"
-                                className={`form-control form-control-sm ${attempted && requiredMissing(f) ? "is-invalid" : ""}`}
-                                accept="image/*"
-                                onChange={(e) => set(f.key, e.target.files[0] ?? null)}
-                            />
+                            <>
+                                <input
+                                    type="file"
+                                    className={`form-control form-control-sm ${attempted && requiredMissing(f) ? "is-invalid" : ""}`}
+                                    accept="image/*"
+                                    onChange={(e) => set(f.key, e.target.files[0] ?? null)}
+                                />
+                                {attempted && requiredMissing(f) ? (
+                                    <div className="invalid-feedback">{f.label} is required.</div>
+                                ) : null}
+                            </>
                         ) : (
-                            <input
-                                type="text"
-                                className={`form-control form-control-sm ${attempted && requiredMissing(f) ? "is-invalid" : ""}`}
-                                placeholder={f.placeholder || ""}
-                                value={vals[f.key]}
-                                onChange={(e) =>
-                                    f.key === "name"
-                                        ? handleNameChange(f.key, e.target.value)
-                                        : f.key === "slug"
-                                            ? (set("_slugTouched", true), set("slug", e.target.value))
-                                            : set(f.key, e.target.value)
-                                }
-                            />
+                            <>
+                                <input
+                                    type="text"
+                                    className={`form-control form-control-sm ${attempted && requiredMissing(f) ? "is-invalid" : ""}`}
+                                    placeholder={f.placeholder || ""}
+                                    value={vals[f.key]}
+                                    onChange={(e) =>
+                                        f.key === "name"
+                                            ? handleNameChange(f.key, e.target.value)
+                                            : f.key === "slug"
+                                                ? (set("_slugTouched", true), set("slug", e.target.value))
+                                                : set(f.key, e.target.value)
+                                    }
+                                />
+                                {attempted && requiredMissing(f) ? (
+                                    <div className="invalid-feedback">{f.label} is required.</div>
+                                ) : null}
+                            </>
                         )}
                     </div>
                 ))}
@@ -1070,7 +1085,7 @@ function ModelTable({ models, loading, emptyMsg, refreshModels, showToast }) {
             <table className="table table-bordered align-middle">
                 <thead>
                     <tr>
-                        <th>#</th>
+                        <th>SR.NO</th>
                         <th style={{ width: 90 }} className="text-center">Image</th>
                         <th>Model Name</th>
                         <th>Slug</th>
@@ -1204,7 +1219,7 @@ function ModelTable({ models, loading, emptyMsg, refreshModels, showToast }) {
                                         ) : (
                                             <table className="table table-sm table-bordered mb-0">
                                                 <thead>
-                                                    <tr><th>#</th><th>Config</th><th>Base Price</th><th>Active</th><th>Actions</th></tr>
+                                                        <tr><th>SR.NO</th><th>Config</th><th>Base Price</th><th>Active</th><th>Actions</th></tr>
                                                 </thead>
                                                 <tbody>
                                                     {configs.map((c, idx) => (

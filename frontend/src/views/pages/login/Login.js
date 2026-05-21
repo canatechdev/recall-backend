@@ -87,11 +87,12 @@ const Login = () => {
               <CCardBody className="p-4">
                 <div className="text-center mb-4">
                   {/* <CIcon icon={logo} height={36} className="text-primary" /> */}
-                  {/* <img
+                  <img
                     src={logo}
                     alt="Resello"
-                    style={{ display: 'block', maxWidth: 180, width: '100%', height: 'auto', margin: '0 auto' }}
-                  /> */}
+                    className="d-block mx-auto img-fluid"
+                    style={{ maxWidth: 240, maxHeight: 64, width: '100%', height: 'auto', objectFit: 'contain' }}
+                  />
                   <div className="h4 fw-bold mt-3 mb-1">Admin Login</div>
                   <div className="text-body-secondary small">Sign in to continue</div>
                 </div>

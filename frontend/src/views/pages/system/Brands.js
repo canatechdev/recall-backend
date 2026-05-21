@@ -200,7 +200,7 @@ const Brands = () => {
     const columns = [
         {
             key: '_idx',
-            label: '#',
+            label: 'SR.NO',
             headerClassName: 'text-center',
             cellClassName: 'text-center',
             headerStyle: { width: 70 },

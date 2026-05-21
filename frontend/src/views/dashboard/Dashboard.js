@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 
 import { CAvatar, CBadge, CButton, CButtonGroup, CCard, CCardBody, CCol, CProgress, CRow } from '@coreui/react'
 import CIcon from '@coreui/icons-react'
@@ -6,50 +6,86 @@ import { cilCloudDownload, cilGlobeAlt, cilPeople, cilStorage, cilSwapHorizontal
 
 import { downloadCsv } from 'src/utils/csv'
 
+import { get_dashboard_summary } from 'src/api/system_service'
+
 import avatar1 from 'src/assets/images/avatars/1.jpg'
 import avatar2 from 'src/assets/images/avatars/2.jpg'
 import avatar3 from 'src/assets/images/avatars/3.jpg'
 
 const Dashboard = () => {
   const [trafficRange, setTrafficRange] = useState('Month')
+  const [summary, setSummary] = useState(null)
+  const [summaryError, setSummaryError] = useState('')
 
-  const stats = useMemo(
-    () => [
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        setSummaryError('')
+        const res = await get_dashboard_summary()
+        if (!alive) return
+        if (res?.status === 200) setSummary(res.data)
+      } catch (e) {
+        if (!alive) return
+        setSummary(null)
+        setSummaryError(e?.response?.data?.message || e?.message || 'Failed to load dashboard data')
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const fmt = (v) => {
+    const n = Number(v)
+    if (!Number.isFinite(n)) return '—'
+    return n.toLocaleString()
+  }
+
+  const stats = useMemo(() => {
+    const c = summary?.counts
+    const usersTotal = c?.users?.total
+    const usersVerified = c?.users?.verified
+    const productsTotal = c?.products?.total
+    const listingsTotal = c?.listings?.total
+    const modelsTotal = c?.catalog?.models?.total
+    const sellConfigsTotal = c?.catalog?.sell_configs?.total
+
+    return [
       {
         label: 'TOTAL USERS',
-        value: '26,482',
-        delta: '+ 12.5%',
+        value: fmt(usersTotal),
+        delta: Number.isFinite(Number(usersVerified)) ? `${fmt(usersVerified)} verified` : '',
         color: 'success',
         icon: cilPeople,
         spark: 'M2,26 C10,26 12,14 20,14 C28,14 28,24 36,24 C44,24 46,10 54,10 C62,10 64,24 72,24 C80,24 86,18 94,18',
       },
       {
-        label: 'MONTHLY INCOME',
-        value: '₹6,200',
-        delta: '+ 8.2%',
+        label: 'TOTAL PRODUCTS',
+        value: fmt(productsTotal),
+        delta: '',
         color: 'success',
         icon: cilWallet,
         spark: 'M2,22 C12,22 14,12 24,12 C34,12 34,20 44,20 C54,20 56,10 66,10 C76,10 80,18 94,18',
       },
       {
-        label: 'CONVERSION RATE',
-        value: '2.49%',
-        delta: '- 0.4%',
-        color: 'danger',
+        label: 'SELL LISTINGS',
+        value: fmt(listingsTotal),
+        delta: '',
+        color: 'success',
         icon: cilSwapHorizontal,
         spark: 'M2,12 C14,12 16,18 26,18 C36,18 38,10 48,10 C58,10 60,22 70,22 C80,22 84,26 94,26',
       },
       {
-        label: 'ACTIVE SESSIONS',
-        value: '44.1K',
-        delta: 'Live Now',
+        label: 'MODELS',
+        value: fmt(modelsTotal),
+        delta: Number.isFinite(Number(sellConfigsTotal)) ? `${fmt(sellConfigsTotal)} sell configs` : '',
         color: 'success',
         icon: cilGlobeAlt,
         spark: 'M2,20 C10,20 12,10 22,10 C32,10 34,24 44,24 C54,24 56,14 66,14 C76,14 78,22 88,22 C92,22 94,20 94,20',
       },
-    ],
-    [],
-  )
+    ]
+  }, [summary])
 
   const nodes = useMemo(
     () => [
@@ -81,29 +117,45 @@ const Dashboard = () => {
     [],
   )
 
-  const team = useMemo(
-    () => [
-      {
-        avatar: avatar1,
-        name: 'Sarah Chen',
-        action: 'invited 3 new leads to the funnel',
-        time: '2 mins ago',
-      },
-      {
-        avatar: avatar2,
-        name: 'Marcus Wright',
-        action: 'updated “Premium Tier” product pricing',
-        time: '14 mins ago',
-      },
-      {
-        avatar: avatar3,
-        name: 'Elena Sofia',
-        action: 'archived 12 rejected leads from June',
-        time: '1 hour ago',
-      },
-    ],
-    [],
-  )
+  const timeAgo = (iso) => {
+    const dt = iso ? new Date(iso) : null
+    if (!dt || Number.isNaN(dt.getTime())) return ''
+    const sec = Math.max(0, Math.floor((Date.now() - dt.getTime()) / 1000))
+    if (sec < 60) return `${sec}s ago`
+    const min = Math.floor(sec / 60)
+    if (min < 60) return `${min}m ago`
+    const hr = Math.floor(min / 60)
+    if (hr < 24) return `${hr}h ago`
+    const day = Math.floor(hr / 24)
+    return `${day}d ago`
+  }
+
+  const team = useMemo(() => {
+    const users = Array.isArray(summary?.recent_users) ? summary.recent_users : []
+    if (users.length === 0) {
+      return [
+        { avatar: avatar1, name: '—', action: 'No recent activity', time: '' },
+        { avatar: avatar2, name: '—', action: 'No recent activity', time: '' },
+        { avatar: avatar3, name: '—', action: 'No recent activity', time: '' },
+      ]
+    }
+    return users.map((u, idx) => {
+      const first = String(u?.first_name || '').trim()
+      const last = String(u?.last_name || '').trim()
+      const name = [first, last].filter(Boolean).join(' ') || String(u?.email || 'User')
+      const email = String(u?.email || '').trim()
+      const initials = (first?.[0] || email?.[0] || 'U').toUpperCase() + (last?.[0] ? last[0].toUpperCase() : '')
+      return {
+        // Keep a stable avatar even if no uploaded image
+        avatar: idx % 3 === 0 ? avatar1 : idx % 3 === 1 ? avatar2 : avatar3,
+        name,
+        action: email ? `joined with ${email}` : 'joined the platform',
+        time: timeAgo(u?.created_at),
+        initials,
+        avatar_url: u?.avatar_url,
+      }
+    })
+  }, [summary])
 
   const Sparkline = ({ d, color }) => (
     <svg width="110" height="34" viewBox="0 0 96 32" aria-hidden="true">
@@ -120,7 +172,7 @@ const Dashboard = () => {
               {label}
             </div>
             <div className="fs-3 fw-bold mt-2">{value}</div>
-            <div className={`small mt-1 text-${color}`}>↗ {delta}</div>
+            {delta ? <div className={`small mt-1 text-${color}`}>{delta}</div> : null}
           </div>
           <div className="rounded-circle bg-body-tertiary d-flex align-items-center justify-content-center" style={{ width: 36, height: 36 }}>
             <CIcon icon={icon} className={`text-${color}`} />
@@ -188,6 +240,7 @@ const Dashboard = () => {
   return (
     <div className="bg-body-tertiary min-vh-100 py-4">
       <div className="container-fluid px-4">
+        {summaryError ? <div className="alert alert-warning py-2">{summaryError}</div> : null}
         <div className="d-flex align-items-start justify-content-between flex-wrap gap-3">
           <div>
             <div className="h3 fw-bold mb-1">Performance Overview</div>
@@ -264,7 +317,22 @@ const Dashboard = () => {
                 <div className="mt-3 d-grid gap-3">
                   {team.map((t) => (
                     <div key={t.name} className="d-flex gap-3">
-                      <CAvatar src={t.avatar} size="md" />
+                      {t?.avatar_url ? (
+                        <CAvatar
+                          src={
+                            String(t.avatar_url).startsWith('http')
+                              ? t.avatar_url
+                              : `${import.meta.env.VITE_API_URL}uploads/${t.avatar_url}`
+                          }
+                          size="md"
+                        />
+                      ) : t?.initials ? (
+                        <CAvatar color="secondary" size="md">
+                          {t.initials}
+                        </CAvatar>
+                      ) : (
+                        <CAvatar src={t.avatar} size="md" />
+                      )}
                       <div className="flex-grow-1">
                         <div className="fw-semibold">{t.name}</div>
                         <div className="text-body-secondary small">{t.action}</div>

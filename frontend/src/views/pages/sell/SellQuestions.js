@@ -1006,7 +1006,7 @@ export default function SellQuestions() {
                                             <table className="table table-sm table-bordered mb-2">
                                                 <thead className="table-light">
                                                     <tr>
-                                                        <th style={{ width: 30 }}>#</th>
+                                                        <th style={{ width: 60 }}>SR.NO</th>
                                                         <th>Text</th>
                                                         <th>Deduction (&#37;)</th>
                                                         <th style={{ width: 86 }}>Image</th>

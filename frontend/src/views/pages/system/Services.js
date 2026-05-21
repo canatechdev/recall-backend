@@ -120,7 +120,7 @@ const Services = () => {
     const columns = [
         {
             key: '_idx',
-            label: '#',
+            label: 'SR.NO',
             render: (s) => s._idx,
             headerClassName: 'text-center',
             cellClassName: 'text-center',

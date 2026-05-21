@@ -66,6 +66,7 @@ exports.createService = async (data) => {
         client.release();
     }
 }
+
 exports.deleteService = async (id) => {
     const data = await pool.query(`delete from services WHERE id=$1 RETURNING id, name`, [id]);
     // const data = await pool.query(`UPDATE services SET is_active=False WHERE id=$1 RETURNING id, name`, [id]);
@@ -1154,4 +1155,108 @@ exports.deleteSeries = async (id) => {
 
 exports.sarthakQuery = async ({ query }) => {
     return await pool.query(query);
+}
+
+// ─────────────────────────────────────────────
+// Dashboard Summary
+// ─────────────────────────────────────────────
+exports.getDashboardSummary = async () => {
+    const client = await pool.connect();
+    try {
+        const runCount = async (sql) => {
+            try {
+                const r = await client.query(sql);
+                return r.rows?.[0]?.count ?? 0;
+            } catch (_) {
+                return 0;
+            }
+        };
+
+        const [
+            usersTotal,
+            usersVerified,
+            productsTotal,
+            listingsTotal,
+            servicesTotal,
+            servicesActive,
+            categoriesTotal,
+            categoriesActive,
+            brandsTotal,
+            seriesTotal,
+            modelsTotal,
+            sellConfigsTotal,
+            bannersTotal,
+            bannersActive,
+            faqsTotal,
+            faqsActive,
+            merchantsTotal,
+            merchantAgentsTotal,
+        ] = await Promise.all([
+            runCount(`SELECT COUNT(*)::int AS count FROM users`),
+            runCount(`SELECT COUNT(*)::int AS count FROM users WHERE is_verified = TRUE`),
+            runCount(`SELECT COUNT(*)::int AS count FROM product_master`),
+            runCount(`SELECT COUNT(*)::int AS count FROM sell_listings`),
+            runCount(`SELECT COUNT(*)::int AS count FROM services`),
+            runCount(`SELECT COUNT(*)::int AS count FROM services WHERE is_active = TRUE`),
+            runCount(`SELECT COUNT(*)::int AS count FROM categories`),
+            runCount(`SELECT COUNT(*)::int AS count FROM categories WHERE is_active = TRUE`),
+            runCount(`SELECT COUNT(*)::int AS count FROM brands`),
+            runCount(`SELECT COUNT(*)::int AS count FROM model_series`),
+            runCount(`SELECT COUNT(*)::int AS count FROM models`),
+            runCount(`SELECT COUNT(*)::int AS count FROM sell_model_configs`),
+            runCount(`SELECT COUNT(*)::int AS count FROM banners`),
+            runCount(`SELECT COUNT(*)::int AS count FROM banners WHERE is_active = TRUE`),
+            runCount(`SELECT COUNT(*)::int AS count FROM faqs`),
+            runCount(`SELECT COUNT(*)::int AS count FROM faqs WHERE is_active = TRUE`),
+            runCount(
+                `SELECT COUNT(DISTINCT ur.user_id)::int AS count
+                   FROM user_roles ur
+                   JOIN roles r ON r.id = ur.role_id
+                  WHERE LOWER(r.name) = 'merchant'`,
+            ),
+            runCount(`SELECT COUNT(*)::int AS count FROM merchant_agents`),
+        ]);
+
+        let recentUsers = [];
+        try {
+            const r = await client.query(
+                `SELECT u.id,
+                        u.email,
+                        u.created_at,
+                        up.first_name,
+                        up.last_name,
+                        up.avatar_url
+                   FROM users u
+              LEFT JOIN user_profile up ON up.user_id = u.id
+               ORDER BY u.created_at DESC
+                  LIMIT 5`,
+            );
+            recentUsers = r.rows || [];
+        } catch (_) {
+            recentUsers = [];
+        }
+
+        return {
+            generated_at: new Date().toISOString(),
+            counts: {
+                users: { total: usersTotal, verified: usersVerified, unverified: Math.max(0, usersTotal - usersVerified) },
+                merchants: { total: merchantsTotal, agents: merchantAgentsTotal },
+                catalog: {
+                    services: { total: servicesTotal, active: servicesActive },
+                    categories: { total: categoriesTotal, active: categoriesActive },
+                    brands: { total: brandsTotal },
+                    series: { total: seriesTotal },
+                    models: { total: modelsTotal },
+                    sell_configs: { total: sellConfigsTotal },
+                },
+                products: { total: productsTotal },
+                listings: { total: listingsTotal },
+                banners: { total: bannersTotal, active: bannersActive },
+                faqs: { total: faqsTotal, active: faqsActive },
+            },
+            recent_users: recentUsers,
+        };
+    } finally {
+        client.release();
+    }
 }

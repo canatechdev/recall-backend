@@ -197,7 +197,7 @@ const Categories = () => {
     const rows = filteredCategories.map((c, idx) => ({ ...c, _idx: idx + 1 }))
 
     const columns = [
-        { key: '_idx', label: '#', headerClassName: 'text-center', cellClassName: 'text-center', render: (r) => r._idx },
+        { key: '_idx', label: 'SR.NO', headerClassName: 'text-center', cellClassName: 'text-center', render: (r) => r._idx },
         { key: 'name', label: 'Name', render: (r) => r.name },
         { key: 'parent', label: 'Parent', render: (r) => r.parent || '-' },
         {

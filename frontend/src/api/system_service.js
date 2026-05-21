@@ -172,6 +172,11 @@ export const get_roles = () => {
     return api.get('api/system/get_roles/')
 }
 
+// ── Dashboard ────────────────────────────────────────────
+export const get_dashboard_summary = () => {
+    return api.get('api/system/dashboard_summary')
+}
+
 export const get_brand_series = (id) => {
     return api.get('api/system/series/' + id)
 }

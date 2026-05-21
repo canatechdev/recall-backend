@@ -137,7 +137,7 @@ const Products = ({ onAddClick }) => {
                         <table className="table table-hover align-middle">
                             <thead className="table-light text-center">
                                 <tr>
-                                    <th>#</th>
+                                    <th>SR.NO</th>
                                     <th className="text-start">Product</th>
                                     <th>Brand</th>
                                     <th>Category</th>

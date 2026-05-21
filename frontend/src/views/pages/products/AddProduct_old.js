@@ -359,7 +359,7 @@ const AddProduct = ({ onSuccess }) => {
                                 <table className="table table-bordered align-middle">
                                     <thead className="table-light">
                                         <tr>
-                                            <th>#</th>
+                                            <th>SR.NO</th>
                                             <th>SKU <span className="text-danger">*</span></th>
                                             <th>Price <span className="text-danger">*</span></th>
                                             <th>Stock</th>

@@ -47,6 +47,8 @@ export default function AddUser() {
     const [loading, setLoading] = useState(false);
     const [toast, setToast] = useState(null); // { type, msg }
 
+    const [attemptedSteps, setAttemptedSteps] = useState({});
+
     // Step 1 - Basic Info
     const [email, setEmail] = useState("");
     const [phone, setPhone] = useState("");
@@ -85,7 +87,17 @@ export default function AddUser() {
 
     const loadRoles = async () => {
         const result = await get_roles();
-        if (result.status == 200) setRoles(result.data);
+        if (result.status == 200) {
+            const roleList = Array.isArray(result.data) ? result.data : [];
+            setRoles(roleList);
+
+            // Roles are mandatory: default to "User" if present.
+            setSelectedRoles((prev) => {
+                if (Array.isArray(prev) && prev.length > 0) return prev;
+                const userRole = roleList.find((r) => String(r?.name || '').toLowerCase() === 'user');
+                return userRole?.id ? [userRole.id] : prev;
+            });
+        }
     }
     const setPhoneNumber = (val) => {
         if (/^[0-9+\s-]*$/.test(val)) {
@@ -107,75 +119,110 @@ export default function AddUser() {
 
     // ── Roles helpers ────────────────────────────────────────
     const toggleRole = (roleId) =>
-        setSelectedRoles((prev) =>
-            prev.includes(roleId)
-                ? prev.filter((id) => id !== roleId)
-                : [...prev, roleId]
-        );
+        setSelectedRoles((prev) => {
+            const prevArr = Array.isArray(prev) ? prev : [];
+            if (prevArr.includes(roleId)) {
+                const next = prevArr.filter((id) => id !== roleId);
+                // Roles are mandatory; don't allow clearing the last role.
+                return next.length === 0 ? prevArr : next;
+            }
+            return [...prevArr, roleId];
+        });
 
 
     // ── Validation ───────────────────────────────────────────
-    const validateStep = (stepToValidate) => {
+    const buildStepErrors = (stepToValidate) => {
+        const errors = {};
+
         if (stepToValidate === 1) {
             const trimmedEmail = (email || "").trim();
-            if (!trimmedEmail) return "Email is required.";
-            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) return "Invalid email.";
+            if (!trimmedEmail) errors.email = "Email is required.";
+            else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) errors.email = "Invalid email.";
 
             const trimmedPhone = (phone || "").trim();
-            if (trimmedPhone && !/^[+0-9\s-]{7,15}$/.test(trimmedPhone)) return "Invalid phone number.";
+            if (trimmedPhone && !/^[+0-9\s-]{7,15}$/.test(trimmedPhone)) errors.phone = "Invalid phone number.";
 
-            if (!password) return "Password is required.";
-            if (password.length < 8) return "Password must be at least 8 characters.";
-            if (!confirmPassword) return "Confirm Password is required.";
-            if (password !== confirmPassword) return "Passwords do not match.";
+            if (!password) errors.password = "Password is required.";
+            else if (password.length < 8) errors.password = "Password must be at least 8 characters.";
+
+            if (!confirmPassword) errors.confirmPassword = "Confirm Password is required.";
+            else if (password !== confirmPassword) errors.confirmPassword = "Passwords do not match.";
         }
 
         if (stepToValidate === 2) {
-            if (!(firstName || "").trim()) return "First Name is required.";
-            if (!(lastName || "").trim()) return "Last Name is required.";
+            if (!(firstName || "").trim()) errors.firstName = "First Name is required.";
+            if (!(lastName || "").trim()) errors.lastName = "Last Name is required.";
 
             if (avatarFile) {
-                if (!avatarFile.type?.startsWith("image/")) return "Avatar must be an image file.";
+                if (!avatarFile.type?.startsWith("image/")) errors.avatar = "Avatar must be an image file.";
                 const maxBytes = 5 * 1024 * 1024;
-                if (avatarFile.size > maxBytes) return "Avatar image must be 5MB or smaller.";
+                if (avatarFile.size > maxBytes) errors.avatar = "Avatar image must be 5MB or smaller.";
             }
         }
 
         if (stepToValidate === 3) {
-            for (let i = 0; i < addresses.length; i++) {
-                const addr = addresses[i];
+            const addrErrors = addresses.map((addr) => {
+                const addrErr = {};
                 const hasAny = Boolean(
-                    (addr.name || "").trim() ||
-                    (addr.phone || "").trim() ||
-                    (addr.line1 || "").trim() ||
-                    (addr.line2 || "").trim() ||
-                    (addr.city || "").trim() ||
-                    (addr.state || "").trim() ||
-                    (addr.pincode || "").trim() ||
-                    (addr.country || "").trim(),
+                    (addr?.name || "").trim() ||
+                    (addr?.phone || "").trim() ||
+                    (addr?.line1 || "").trim() ||
+                    (addr?.line2 || "").trim() ||
+                    (addr?.city || "").trim() ||
+                    (addr?.state || "").trim() ||
+                    (addr?.pincode || "").trim() ||
+                    (addr?.country || "").trim(),
                 );
 
-                if (!hasAny) continue; // optional addresses
+                if (!hasAny) return addrErr; // optional address
 
-                if (!(addr.line1 || "").trim()) return `Address ${i + 1}: Line 1 is required.`;
-                if (!(addr.city || "").trim()) return `Address ${i + 1}: City is required.`;
-                if (!(addr.state || "").trim()) return `Address ${i + 1}: State is required.`;
-                if (!(addr.country || "").trim()) return `Address ${i + 1}: Country is required.`;
+                if (!(addr?.line1 || "").trim()) addrErr.line1 = "Line 1 is required.";
+                if (!(addr?.city || "").trim()) addrErr.city = "City is required.";
+                if (!(addr?.state || "").trim()) addrErr.state = "State is required.";
+                if (!(addr?.country || "").trim()) addrErr.country = "Country is required.";
 
-                const pin = (addr.pincode || "").trim();
-                if (!pin) return `Address ${i + 1}: Pincode is required.`;
-                if (!/^[0-9]{4,10}$/.test(pin)) return `Address ${i + 1}: Invalid pincode.`;
+                const pin = (addr?.pincode || "").trim();
+                if (!pin) addrErr.pincode = "Pincode is required.";
+                else if (!/^[0-9]{4,10}$/.test(pin)) addrErr.pincode = "Invalid pincode.";
 
-                const addrPhone = (addr.phone || "").trim();
-                if (addrPhone && !/^[+0-9\s-]{7,15}$/.test(addrPhone)) return `Address ${i + 1}: Invalid contact phone.`;
+                const addrPhone = (addr?.phone || "").trim();
+                if (addrPhone && !/^[+0-9\s-]{7,15}$/.test(addrPhone)) addrErr.phone = "Invalid contact phone.";
+
+                return addrErr;
+            });
+
+            if (addrErrors.some((e) => Object.keys(e).length > 0)) {
+                errors.addresses = addrErrors;
             }
         }
 
-        return null;
+        if (stepToValidate === 4) {
+            if (!Array.isArray(selectedRoles) || selectedRoles.length === 0) {
+                errors.roles = "At least one role is required.";
+            }
+        }
+
+        return errors;
+    };
+
+    const firstErrorMessage = (errors, currentStep) => {
+        if (!errors || typeof errors !== 'object') return null;
+        if (currentStep === 3 && Array.isArray(errors.addresses)) {
+            for (let i = 0; i < errors.addresses.length; i++) {
+                const e = errors.addresses[i] || {};
+                const firstKey = Object.keys(e)[0];
+                if (firstKey) return `Address ${i + 1}: ${e[firstKey]}`;
+            }
+            return null;
+        }
+        const firstKey = Object.keys(errors)[0];
+        return firstKey ? errors[firstKey] : null;
     };
 
     const goNext = () => {
-        const err = validateStep(step);
+        setAttemptedSteps((p) => ({ ...p, [step]: true }));
+        const stepErrors = buildStepErrors(step);
+        const err = firstErrorMessage(stepErrors, step);
         if (err) { showToast("danger", err); return; }
         setStep((s) => s + 1);
     };
@@ -189,7 +236,9 @@ export default function AddUser() {
 
     // ── Submit ───────────────────────────────────────────────
     const handleSubmit = async () => {
-        const err = validateStep(step);
+        setAttemptedSteps((p) => ({ ...p, [step]: true }));
+        const stepErrors = buildStepErrors(step);
+        const err = firstErrorMessage(stepErrors, step);
         if (err) { showToast("danger", err); return; }
 
         const addressList = addresses
@@ -235,6 +284,7 @@ export default function AddUser() {
         setFirstName(""); setLastName(""); setAvatarFile(null); setAvatarPreviewUrl("");
         setAddresses([{ ...initialAddress }]);
         setSelectedRoles([]);
+        setAttemptedSteps({});
         // setStatus("active");
     };
     const setFirstNameFilter = (val) => {
@@ -251,6 +301,10 @@ export default function AddUser() {
         setToast({ type, msg });
         setTimeout(() => setToast(null), 3500);
     };
+
+    const step1Errors = attemptedSteps[1] ? buildStepErrors(1) : {};
+    const step2Errors = attemptedSteps[2] ? buildStepErrors(2) : {};
+    const step4Errors = attemptedSteps[4] ? buildStepErrors(4) : {};
 
     return (
         <div className="container py-4">
@@ -302,31 +356,33 @@ export default function AddUser() {
                                     </label>
                                     <input
                                         type="email"
-                                        className="form-control"
+                                        className={`form-control ${step1Errors.email ? 'is-invalid' : ''}`}
                                         placeholder="user@example.com"
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
                                     />
+                                    <div className="invalid-feedback">{step1Errors.email}</div>
                                 </div>
                                 <div className="col-md-6">
                                     <label className="form-label fw-semibold">Phone</label>
                                     <input
                                         type="tel"
-                                        className="form-control"
+                                        className={`form-control ${step1Errors.phone ? 'is-invalid' : ''}`}
                                         placeholder="9876543210"
                                         value={phone}
                                         onChange={(e) => setPhoneNumber(e.target.value)}
                                         maxLength={15}
                                     />
+                                    <div className="invalid-feedback">{step1Errors.phone}</div>
                                 </div>
                                 <div className="col-md-6">
                                     <label className="form-label fw-semibold">
                                         Password <span className="text-danger">*</span>
                                     </label>
-                                    <div className="input-group">
+                                    <div className="input-group has-validation">
                                         <input
                                             type={showPassword ? "text" : "password"}
-                                            className="form-control"
+                                            className={`form-control ${step1Errors.password ? 'is-invalid' : ''}`}
                                             placeholder="Min. 8 characters"
                                             value={password}
                                             onChange={(e) => setPassword(e.target.value)}
@@ -342,15 +398,16 @@ export default function AddUser() {
                                             <CIcon icon={showPassword ? cilLowVision : eyeIcon} />
                                         </span>
                                     </div>
+                                    <div className="invalid-feedback d-block">{step1Errors.password}</div>
                                 </div>
                                 <div className="col-md-6">
                                     <label className="form-label fw-semibold">
                                         Confirm Password <span className="text-danger">*</span>
                                     </label>
-                                    <div className="input-group">
+                                    <div className="input-group has-validation">
                                         <input
                                             type={showConfirmPassword ? "text" : "password"}
-                                            className="form-control"
+                                            className={`form-control ${step1Errors.confirmPassword ? 'is-invalid' : ''}`}
                                             placeholder="Repeat password"
                                             value={confirmPassword}
                                             onChange={(e) => setConfirmPassword(e.target.value)}
@@ -366,9 +423,7 @@ export default function AddUser() {
                                             <CIcon icon={showConfirmPassword ? cilLowVision : eyeIcon} />
                                         </span>
                                     </div>
-                                    {confirmPassword && password !== confirmPassword && (
-                                        <div className="form-text text-danger">Passwords do not match.</div>
-                                    )}
+                                    <div className="invalid-feedback d-block">{step1Errors.confirmPassword}</div>
                                 </div>
                                 <div className="col-12">
                                     <div className="form-check form-switch">
@@ -409,12 +464,13 @@ export default function AddUser() {
                                     </label>
                                     <input
                                         type="text"
-                                        className="form-control"
+                                        className={`form-control ${step2Errors.firstName ? 'is-invalid' : ''}`}
                                         placeholder="FName"
                                         value={firstName}
                                         onChange={(e) => setFirstNameFilter(e.target.value)}
                                         maxLength={50}
                                     />
+                                    <div className="invalid-feedback">{step2Errors.firstName}</div>
                                 </div>
                                 <div className="col-md-6">
                                     <label className="form-label fw-semibold">
@@ -422,21 +478,23 @@ export default function AddUser() {
                                     </label>
                                     <input
                                         type="text"
-                                        className="form-control"
+                                        className={`form-control ${step2Errors.lastName ? 'is-invalid' : ''}`}
                                         placeholder="LName"
                                         value={lastName}
                                         onChange={(e) => setLastNameFilter(e.target.value)}
                                         maxLength={50}
                                     />
+                                    <div className="invalid-feedback">{step2Errors.lastName}</div>
                                 </div>
                                 <div className="col-12">
                                     <label className="form-label fw-semibold">Avatar</label>
                                     <input
                                         type="file"
-                                        className="form-control"
+                                        className={`form-control ${step2Errors.avatar ? 'is-invalid' : ''}`}
                                         accept="image/*"
                                         onChange={(e) => setAvatarFile(e.target.files?.[0] || null)}
                                     />
+                                    <div className="invalid-feedback">{step2Errors.avatar}</div>
                                     <small className="text-muted">Optional. Image files only, up to 5MB.</small>
                                 </div>
                                 {avatarPreviewUrl && (
@@ -471,7 +529,10 @@ export default function AddUser() {
                                 <small className="text-muted fw-normal">(optional)</small>
                             </h6>
 
-                            {addresses.map((addr, i) => (
+                            {addresses.map((addr, i) => {
+                                const stepErrors = attemptedSteps[3] ? buildStepErrors(3) : {};
+                                const addrErr = Array.isArray(stepErrors.addresses) ? (stepErrors.addresses[i] || {}) : {};
+                                return (
                                 <div key={i} className="border rounded p-3 mb-3 bg-light position-relative">
                                     <div className="d-flex justify-content-between align-items-center mb-2">
                                         <span className="fw-semibold text-secondary small text-uppercase">
@@ -521,12 +582,13 @@ export default function AddUser() {
                                             <label className="form-label small fw-semibold">Contact Phone</label>
                                             <input
                                                 type="tel"
-                                                className="form-control form-control-sm"
+                                                className={`form-control form-control-sm ${addrErr.phone ? 'is-invalid' : ''}`}
                                                 placeholder="+91 9876543210"
                                                 value={addr.phone}
                                                 onChange={(e) => updateAddress(i, "phone", e.target.value)}
                                                 maxLength={15}
                                             />
+                                            <div className="invalid-feedback">{addrErr.phone}</div>
                                         </div>
                                         <div className="col-12">
                                             <label className="form-label small fw-semibold">
@@ -534,11 +596,12 @@ export default function AddUser() {
                                             </label>
                                             <input
                                                 type="text"
-                                                className="form-control form-control-sm"
+                                                className={`form-control form-control-sm ${addrErr.line1 ? 'is-invalid' : ''}`}
                                                 placeholder="House no., Street, Area"
                                                 value={addr.line1}
                                                 onChange={(e) => updateAddress(i, "line1", e.target.value)}
                                             />
+                                            <div className="invalid-feedback">{addrErr.line1}</div>
                                         </div>
                                         <div className="col-12">
                                             <label className="form-label small fw-semibold">Line 2</label>
@@ -554,49 +617,54 @@ export default function AddUser() {
                                             <label className="form-label small fw-semibold">City</label>
                                             <input
                                                 type="text"
-                                                className="form-control form-control-sm"
+                                                className={`form-control form-control-sm ${addrErr.city ? 'is-invalid' : ''}`}
                                                 placeholder="Mumbai"
                                                 value={addr.city}
                                                 onChange={(e) => updateAddress(i, "city", e.target.value)}
                                                 maxLength={50}
                                             />
+                                            <div className="invalid-feedback">{addrErr.city}</div>
                                         </div>
                                         <div className="col-md-4">
                                             <label className="form-label small fw-semibold">State</label>
                                             <input
                                                 type="text"
-                                                className="form-control form-control-sm"
+                                                className={`form-control form-control-sm ${addrErr.state ? 'is-invalid' : ''}`}
                                                 placeholder="Maharashtra"
                                                 value={addr.state}
                                                 onChange={(e) => updateAddress(i, "state", e.target.value)}
                                                 maxLength={50}
                                             />
+                                            <div className="invalid-feedback">{addrErr.state}</div>
                                         </div>
                                         <div className="col-md-4">
                                             <label className="form-label small fw-semibold">Pincode</label>
                                             <input
                                                 type="text"
-                                                className="form-control form-control-sm"
+                                                className={`form-control form-control-sm ${addrErr.pincode ? 'is-invalid' : ''}`}
                                                 placeholder="400001"
                                                 value={addr.pincode}
                                                 onChange={(e) => updateAddress(i, "pincode", e.target.value)}
                                                 maxLength={10}
                                             />
+                                            <div className="invalid-feedback">{addrErr.pincode}</div>
                                         </div>
                                         <div className="col-md-6">
                                             <label className="form-label small fw-semibold">Country</label>
                                             <input
                                                 type="text"
-                                                className="form-control form-control-sm"
+                                                className={`form-control form-control-sm ${addrErr.country ? 'is-invalid' : ''}`}
                                                 placeholder="India"
                                                 value={addr.country}
                                                 onChange={(e) => updateAddress(i, "country", e.target.value)}
                                                 maxLength={50}
                                             />
+                                            <div className="invalid-feedback">{addrErr.country}</div>
                                         </div>
                                     </div>
                                 </div>
-                            ))}
+                                );
+                            })}
 
                             <button className="btn btn-outline-primary btn-sm" onClick={addAddress}>
                                 <CIcon icon={cilPlus} className="me-1" /> Add Another Address
@@ -624,8 +692,9 @@ export default function AddUser() {
                             <div className="mb-3">
                                 <label className="form-label fw-semibold">
                                     <CIcon icon={cilPeople} className="me-1" /> Assign Roles
+                                    <span className="text-danger"> *</span>
                                 </label>
-                                <div className="d-flex flex-wrap gap-2">
+                                <div className={`d-flex flex-wrap gap-2 ${step4Errors.roles ? 'border border-danger rounded p-2' : ''}`}>
                                     {roles.map((role) => {
                                         const active = selectedRoles.includes(role.id);
 
@@ -644,11 +713,9 @@ export default function AddUser() {
                                     })}
 
                                 </div>
-                                {selectedRoles.length === 0 && (
-                                    <small className="text-muted d-block mt-1">
-                                        No roles assigned — user will have default access only.
-                                    </small>
-                                )}
+                                {step4Errors.roles ? (
+                                    <div className="text-danger small mt-1">{step4Errors.roles}</div>
+                                ) : null}
                             </div>
 
                             {/* Summary */}
