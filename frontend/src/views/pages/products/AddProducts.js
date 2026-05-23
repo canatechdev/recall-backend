@@ -274,7 +274,7 @@ const AddProduct = ({ onSuccess }) => {
                     useNavigate.navigate('/products')
                     onSuccess();
                 }
-                
+
             } catch (err) {
                 console.log(err)
                 alert("Something went wrong.")

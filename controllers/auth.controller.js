@@ -9,7 +9,7 @@ exports.verifyOTP = async (req, res) => {
     sameSite: "strict",
     maxAge: 15 * 24 * 60 * 60 * 1000 // 15 days
   });
-  res.status(200).json({ "accessToken": result.accessToken, "user": result.user });
+  res.status(200).json({ accessToken: result.accessToken, user: result.res_user });
 };
 // OTP REQUEST
 exports.requestOTP = async (req, res) => {
@@ -32,11 +32,11 @@ exports.login = async (req, res) => {
   const result = await authService.loginUser(req.body);
   res.cookie("refreshToken", result.refreshToken, {
     httpOnly: true,
-    secure: false,
+    secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
     maxAge: 15 * 24 * 60 * 60 * 1000 // 15 days
   })
-  res.status(200).json({ accessToken: result.accessToken, refreshToken: result.refreshToken, user: result.res_user });
+  res.status(200).json({ accessToken: result.accessToken, user: result.res_user });
 };
 
 exports.refresh = async (req, res) => {

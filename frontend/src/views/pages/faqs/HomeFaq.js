@@ -115,17 +115,7 @@ const HomeFaqs = () => {
     try {
       if (!faq?.id) return
 
-      const res = await Swal.fire({
-        title: 'Delete FAQ?',
-        text: 'This will permanently delete this FAQ.',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Delete',
-        cancelButtonText: 'Cancel',
-        confirmButtonColor: '#d33',
-      })
-
-      if (!res.isConfirmed) return
+      if (!window.confirm('Are you sure want to delete this?')) return
 
       await deleteFaq(faq.id)
       await loadFaqs()

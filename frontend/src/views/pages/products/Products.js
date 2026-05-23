@@ -8,6 +8,7 @@ import ThemedTablePage from 'src/components/ThemedTablePage'
 const Products = ({ onAddClick }) => {
     const navigate = useNavigate()
     const [products, setProducts] = useState([])
+    const [loading, setLoading] = useState(false)
     const [search, setSearch] = useState('')
     const [filterBrand, setFilterBrand] = useState('')
     const [filterCategory, setFilterCategory] = useState('')
@@ -23,10 +24,13 @@ const Products = ({ onAddClick }) => {
 
     const fetchProducts = async () => {
         try {
+            setLoading(true)
             const res = await get_products()
             setProducts(res.data)
         } catch (err) {
             console.log(err)
+        } finally {
+            setLoading(false)
         }
     }
 
@@ -50,7 +54,7 @@ const Products = ({ onAddClick }) => {
 
     const deleteProduct = async (id) => {
         if (!id) return
-        if (confirm('Delete this product?')) {
+        if (window.confirm('Are you sure want to delete this?')) {
             try {
                 await delete_product(id)
                 setProducts(products.filter(p => p.id !== id))
@@ -179,8 +183,8 @@ const Products = ({ onAddClick }) => {
                 render: (p) => (
                     <span
                         className={`badge ${p.status_label === 'active' || !p.status_label
-                                ? 'bg-success'
-                                : 'bg-warning text-dark'
+                            ? 'bg-success'
+                            : 'bg-warning text-dark'
                             }`}
                     >
                         {p.status_label || 'active'}
@@ -289,6 +293,7 @@ const Products = ({ onAddClick }) => {
     return (
         <div className="container py-4">
             <ThemedTablePage
+                loading={loading}
                 actions={{
                     filtersContent,
                     onExport: null,

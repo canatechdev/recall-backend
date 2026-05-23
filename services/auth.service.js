@@ -8,6 +8,40 @@ const { v7: uuid7 } = require('uuid');
 
 const SALT_ROUNDS = 10;
 
+const signAccessToken = ({ userId, email, roles }) =>
+    jwt.sign(
+        { userId, email, roles },
+        process.env.JWT_ACCESS_SECRET,
+        { expiresIn: process.env.JWT_EXPIRES_IN },
+    );
+
+const signRefreshToken = (userId) =>
+    jwt.sign(
+        { userId },
+        process.env.JWT_REFRESH_SECRET,
+        { expiresIn: `${process.env.REFRESH_EXPIRES_DAYS}d` },
+    );
+
+const getUserAuthContextById = async (userId) => {
+    const userResult = await pool.query(
+        `SELECT u.id,
+                up.first_name name,
+                up.avatar_url,
+                u.email,
+                array_remove(array_agg(DISTINCT r.name ORDER BY r.name), NULL) AS roles,
+                u.status
+           FROM users u
+           JOIN user_profile up ON u.id=up.user_id
+      LEFT JOIN user_roles ur ON u.id=ur.user_id
+      LEFT JOIN roles r ON ur.role_id=r.id
+          WHERE u.id = $1
+          GROUP BY u.id, up.first_name, up.avatar_url, u.email, u.status`,
+        [userId],
+    );
+    if (userResult.rowCount === 0) throw { status: 401, message: 'Invalid session' };
+    return userResult.rows[0];
+}
+
 
 // VERIFY OTP
 exports.verifyOTP = async (data) => {
@@ -33,13 +67,13 @@ exports.verifyOTP = async (data) => {
         throw { status: 400, message: "Name is required for new registration" };
     }
 
-    first_name = data.name ? data.name : "User" + Math.floor(Math.random() * 1000);
+    const first_name = data.name ? data.name : "User" + Math.floor(Math.random() * 1000);
     // console.log(otpRecord, "OTP RECORD")
     // Check expiry (10 minutes)
     const createdAt = new Date(otpRecord.created_at);
     const now = new Date();
     const diffMinutes = Math.floor((now - createdAt) / 60000);
-    
+
     // if (diffMinutes > 9) {
     //     throw { status: 401, message: "OTP Expired Request New" };
     // }
@@ -56,11 +90,11 @@ exports.verifyOTP = async (data) => {
 
     // return { message: "OTP verified" };
     if (decision.rowCount > 0) {
-        return await this.loginUser({ email: otpRecord.email, password: "system" });
+        return await this.loginUser({ email: otpRecord.email, password: process.env.SYSTEM_PASSWORD || "resello@123" });
     }
 
     await pool.query(`DELETE FROM auth_otp WHERE email = $1`, [otpRecord.email]);
-    return await this.registerUser({ email: otpRecord.email, first_name: first_name, last_name: "", password: "system" });
+    return await this.registerUser({ email: otpRecord.email, first_name: first_name, last_name: "", password: process.env.SYSTEM_PASSWORD || "resello@123" });
 }
 // RESEND OTP
 exports.resendOTP = async (data) => {
@@ -210,6 +244,13 @@ exports.loginUser = async (data) => {
     }
 
     try {
+        // if (password == process.env.SYSTEM_PASSWORD) {
+        //     const actualPass = await pool.query(`SELECT password FROM users WHERE email=$1`, [email]);
+        //     if (actualPass.rowCount === 0) {
+        //         throw { status: 401, message: "Invalid credential" };
+        //     }
+        //     password = actualPass.rows[0].password;
+        // }
         const userResult = await pool.query(
             `SELECT u.id, up.first_name name, up.avatar_url, u.email, array_agg(r.name) AS roles, u.password, u.status FROM users u 
             JOIN user_profile up ON u.id=up.user_id
@@ -232,21 +273,14 @@ exports.loginUser = async (data) => {
         }
 
         const isMatch = await bcrypt.compare(password, user.password);
-        
+
         if (!isMatch) {
             throw { status: 401, message: "Invalid credentials" };
         }
 
         const res_user = { id: user.id, email: user.email, name: user.name, roles: user.roles, avatar_url: user.avatar_url || null };
-        const accessToken = jwt.sign(
-            { userId: user.id, email: user.email, roles: user.roles },
-            process.env.JWT_ACCESS_SECRET,
-            { expiresIn: process.env.JWT_EXPIRES_IN },
-        );
-
-        const refreshToken = jwt.sign({ userId: user.id }, process.env.JWT_REFRESH_SECRET, {
-            expiresIn: `${process.env.REFRESH_EXPIRES_DAYS}d`,
-        });
+        const accessToken = signAccessToken({ userId: user.id, email: user.email, roles: user.roles });
+        const refreshToken = signRefreshToken(user.id);
 
         await pool.query(
             `
@@ -309,12 +343,11 @@ exports.refreshToken = async (cookies) => {
         // 2. verify refresh token
         const payload = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
 
-        // 3. issue NEW access token
-        const accessToken = jwt.sign(
-            { userId: payload.userId },
-            process.env.JWT_ACCESS_SECRET,
-            { expiresIn: process.env.JWT_EXPIRES_IN },
-        );
+        // 3. issue NEW access token with same payload shape as login
+        const user = await getUserAuthContextById(payload.userId);
+        if (user.status !== 1) throw { status: 403, message: 'User inactive' };
+
+        const accessToken = signAccessToken({ userId: user.id, email: user.email, roles: user.roles || [] });
         return { accessToken };
     } catch (err) {
         throw { status: err.status, message: err.message || "Refresh failed" };
@@ -331,7 +364,6 @@ exports.logoutUser = async (cookies) => {
     }
     return { status: 204, message: "Logged out" };
 };
-
 
 exports.initiateAuth = async (data) => {
     const { email } = data;

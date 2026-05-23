@@ -340,7 +340,7 @@ export default function SellQuestions() {
     };
 
     const handleDeleteQuestion = async (id) => {
-        if (!confirm("Deactivate this question?")) return;
+        if (!window.confirm('Are you sure want to delete this?')) return;
         try {
             await delete_sell_question(id);
             if (expandedId === id) { setExpandedId(null); }
@@ -400,7 +400,7 @@ export default function SellQuestions() {
 
     const handleDeleteOption = async (optId) => {
         if (!optId) return;
-        if (!confirm("Delete this option?")) return;
+        if (!window.confirm('Are you sure want to delete this?')) return;
         try {
             await delete_question_option(optId);
             showToast('success', 'Option deleted');
@@ -468,6 +468,7 @@ export default function SellQuestions() {
 
     const handleDeleteCondition = async (triggerOptionId, showQuestionId) => {
         if (!triggerOptionId || !showQuestionId || !expandedId) return;
+        if (!window.confirm('Are you sure want to delete this?')) return;
         try {
             // Fetch condition ID on demand (no need to pre-load conditions)
             const res = await get_question_conditions(expandedId);

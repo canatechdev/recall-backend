@@ -7,6 +7,8 @@ import ThemedTablePage from 'src/components/ThemedTablePage'
 const Services = () => {
     const [services, setServices] = useState([])
     const [isService, setIsService] = useState(false)
+    const [loading, setLoading] = useState(false)
+    const [attempted, setAttempted] = useState(false)
     const [toast, setToast] = useState(null)
 
     const [name, setName] = useState("")
@@ -22,6 +24,9 @@ const Services = () => {
         setTimeout(() => setToast(null), 3500)
     }
 
+    const nameError = attempted && !(name || '').trim() ? 'Service name is required.' : ''
+    const imageError = attempted && !isEdit && !file ? 'Image is required.' : ''
+
     const toggleService = () => {
         setIsService(!isService)
         setIsEdit(false)
@@ -29,6 +34,7 @@ const Services = () => {
         setName('')
         setFile(null)
         setUrl('')
+        setAttempted(false)
     }
 
     const editService = ({ id, name, url }) => {
@@ -39,14 +45,18 @@ const Services = () => {
         setName(name)
         setUrl(url)
         setFile(null)
+        setAttempted(false)
     }
 
     const fetchServices = async () => {
         try {
+            setLoading(true)
             const response = await get_services_all()
             if (response.status === 200) setServices(response.data)
         } catch (err) {
             console.error(err)
+        } finally {
+            setLoading(false)
         }
     }
 
@@ -90,13 +100,19 @@ const Services = () => {
     }
 
     const handleSubmit = () => {
+        setAttempted(true)
+        if (nameError || imageError) {
+            showToast('danger', 'Please fill the required fields.')
+            return
+        }
+
         if (isEdit) updateServiceHandler();
         else createServiceHandler();
     }
 
     const deleteService = async (id) => {
         if (!id) return
-        if (!confirm('Delete this service?')) return
+        if (!window.confirm('Are you sure want to delete this?')) return
         try {
             await delete_service(id)
             showToast('success', 'Service deleted')
@@ -202,17 +218,19 @@ const Services = () => {
                             type="text"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
-                            className="form-control"
+                            className={`form-control ${nameError ? 'is-invalid' : ''}`}
                             placeholder="Service name"
                         />
+                        {nameError ? <div className="invalid-feedback">{nameError}</div> : null}
                     </div>
                     <div className="col-md-4">
                         <input
                             type="file"
                             onChange={(e) => setFile(e.target.files?.[0] || null)}
-                            className="form-control"
+                            className={`form-control ${imageError ? 'is-invalid' : ''}`}
                             accept="image/*"
                         />
+                        {imageError ? <div className="invalid-feedback">{imageError}</div> : null}
                     </div>
                     {url && (
                         <div className="col-md-1">
@@ -265,6 +283,7 @@ const Services = () => {
                 topContent={topContent}
                 columns={columns}
                 rows={rows}
+                loading={loading}
                 rowKey={(s) => s.id}
                 emptyText={services.length === 0 ? 'No Services Found' : 'No Services match your filters'}
                 footerLeft={

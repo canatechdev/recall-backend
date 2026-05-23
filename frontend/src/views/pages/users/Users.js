@@ -74,7 +74,7 @@ const Users = () => {
     }, [])
 
     const handleDelete = async (u) => {
-        if (!window.confirm(`Delete user \"${u.email}\"?`)) return
+        if (!window.confirm('Are you sure want to delete this?')) return
         try {
             await delete_user(u.id)
             showToast('success', 'User deleted')
@@ -145,7 +145,7 @@ const Users = () => {
                 const statusInfo = STATUS_LABELS[u.status] || { badge: 'secondary' }
                 return (
                     <div className="d-flex align-items-center">
-                        <CAvatar size="md" src={`${import.meta.env.VITE_API_URL+"uploads/" + u.avatar_url}`} status={statusInfo.badge} />
+                        <CAvatar size="md" src={`${import.meta.env.VITE_API_URL + "uploads/" + u.avatar_url}`} status={statusInfo.badge} />
                         <div className="ms-3">
                             <div className="fw-semibold">{safeName(u)}</div>
                             <div className="small text-medium-emphasis">{u.email}</div>

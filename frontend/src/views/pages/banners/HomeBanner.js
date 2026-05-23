@@ -32,17 +32,7 @@ const HomeBanner = () => {
   }, [])
 
   const handleDelete = async (banner) => {
-    const result = await Swal.fire({
-      title: 'Delete Banner?'
-      , text: 'This will permanently delete the banner.'
-      , icon: 'warning'
-      , showCancelButton: true
-      , confirmButtonColor: '#d33'
-      , cancelButtonColor: '#6c757d'
-      , confirmButtonText: 'Yes, delete'
-    })
-
-    if (!result.isConfirmed) return
+    if (!window.confirm('Are you sure want to delete this?')) return
 
     try {
       await deleteBanner(banner.id)

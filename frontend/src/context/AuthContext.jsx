@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom'
 import * as authApi from 'src/api/auth.api'
 import { onAuthFailure } from 'src/auth/authEvents'
 import { deleteCookie, getCookie, setCookie } from 'src/utils/cookies'
-import { clearRefreshToken, getRefreshToken, setRefreshToken } from 'src/utils/tokens'
 
 const AuthContext = createContext(null)
 
@@ -19,12 +18,8 @@ export const AuthProvider = ({ children }) => {
   const login = async ({ email, password }) => {
     const res = await authApi.login({ email, password })
     const token = res?.data?.accessToken
-    const refreshToken = res?.data?.refreshToken
     if (token) {
       setCookie('accessToken', token, { path: '/', maxAge: 60 * 60, sameSite: 'Strict', secure: false })
-    }
-    if (refreshToken) {
-      setRefreshToken(refreshToken)
     }
     setUser(res?.data?.user || res?.data?.res_user || null)
     return res
@@ -37,7 +32,6 @@ export const AuthProvider = ({ children }) => {
       // ignore
     } finally {
       deleteCookie('accessToken')
-      clearRefreshToken()
       setUser(null)
       navigate('/login', { replace: true })
     }
@@ -46,7 +40,6 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const unsub = onAuthFailure(() => {
       deleteCookie('accessToken')
-      clearRefreshToken()
       setUser(null)
       navigate('/login', { replace: true })
     })
@@ -56,7 +49,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const init = async () => {
       try {
-        // If accessToken exists, consider session active; otherwise try refresh via httpOnly refreshToken.
+        // If accessToken exists, consider session active; otherwise try refresh via httpOnly refreshToken cookie.
         if (getCookie('accessToken')) {
           try {
             const meRes = await authApi.me()
@@ -68,20 +61,10 @@ export const AuthProvider = ({ children }) => {
           return
         }
 
-        const refreshToken = getRefreshToken()
-        if (!refreshToken) {
-          setLoading(false)
-          return
-        }
-
-        const res = await authApi.refresh({ refreshToken })
+        const res = await authApi.refresh()
         const token = res?.data?.accessToken
-        const newRefreshToken = res?.data?.refreshToken
         if (token) {
           setCookie('accessToken', token, { path: '/', maxAge: 60 * 60, sameSite: 'Strict', secure: false })
-        }
-        if (newRefreshToken) {
-          setRefreshToken(newRefreshToken)
         }
 
         if (token) {

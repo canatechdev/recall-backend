@@ -533,136 +533,136 @@ export default function AddUser() {
                                 const stepErrors = attemptedSteps[3] ? buildStepErrors(3) : {};
                                 const addrErr = Array.isArray(stepErrors.addresses) ? (stepErrors.addresses[i] || {}) : {};
                                 return (
-                                <div key={i} className="border rounded p-3 mb-3 bg-light position-relative">
-                                    <div className="d-flex justify-content-between align-items-center mb-2">
-                                        <span className="fw-semibold text-secondary small text-uppercase">
-                                            Address {i + 1}
-                                            {addr.is_default && (
-                                                <span className="badge bg-success ms-2">Default</span>
-                                            )}
-                                        </span>
-                                        <div className="d-flex gap-2 align-items-center">
-                                            <div className="form-check mb-0">
-                                                <input
-                                                    className="form-check-input"
-                                                    type="radio"
-                                                    name="defaultAddress"
-                                                    id={`default_${i}`}
-                                                    checked={addr.is_default}
-                                                    onChange={() => updateAddress(i, "is_default", true)}
-                                                />
-                                                <label className="form-check-label small" htmlFor={`default_${i}`}>
-                                                    Set Default
-                                                </label>
+                                    <div key={i} className="border rounded p-3 mb-3 bg-light position-relative">
+                                        <div className="d-flex justify-content-between align-items-center mb-2">
+                                            <span className="fw-semibold text-secondary small text-uppercase">
+                                                Address {i + 1}
+                                                {addr.is_default && (
+                                                    <span className="badge bg-success ms-2">Default</span>
+                                                )}
+                                            </span>
+                                            <div className="d-flex gap-2 align-items-center">
+                                                <div className="form-check mb-0">
+                                                    <input
+                                                        className="form-check-input"
+                                                        type="radio"
+                                                        name="defaultAddress"
+                                                        id={`default_${i}`}
+                                                        checked={addr.is_default}
+                                                        onChange={() => updateAddress(i, "is_default", true)}
+                                                    />
+                                                    <label className="form-check-label small" htmlFor={`default_${i}`}>
+                                                        Set Default
+                                                    </label>
+                                                </div>
+                                                {addresses.length > 1 && (
+                                                    <button
+                                                        className="btn btn-sm btn-outline-danger"
+                                                        onClick={() => removeAddress(i)}
+                                                    >
+                                                        <CIcon icon={cilTrash} />
+                                                    </button>
+                                                )}
                                             </div>
-                                            {addresses.length > 1 && (
-                                                <button
-                                                    className="btn btn-sm btn-outline-danger"
-                                                    onClick={() => removeAddress(i)}
-                                                >
-                                                    <CIcon icon={cilTrash} />
-                                                </button>
-                                            )}
                                         </div>
-                                    </div>
 
-                                    <div className="row g-2">
-                                        <div className="col-md-6">
-                                            <label className="form-label small fw-semibold">Contact Name</label>
-                                            <input
-                                                type="text"
-                                                className="form-control form-control-sm"
-                                                placeholder="Receiver name"
-                                                value={addr.name}
-                                                onChange={(e) => updateAddress(i, "name", e.target.value)}
-                                                maxLength={50}
-                                            />
-                                        </div>
-                                        <div className="col-md-6">
-                                            <label className="form-label small fw-semibold">Contact Phone</label>
-                                            <input
-                                                type="tel"
-                                                className={`form-control form-control-sm ${addrErr.phone ? 'is-invalid' : ''}`}
-                                                placeholder="+91 9876543210"
-                                                value={addr.phone}
-                                                onChange={(e) => updateAddress(i, "phone", e.target.value)}
-                                                maxLength={15}
-                                            />
-                                            <div className="invalid-feedback">{addrErr.phone}</div>
-                                        </div>
-                                        <div className="col-12">
-                                            <label className="form-label small fw-semibold">
-                                                Line 1 <span className="text-danger">*</span>
-                                            </label>
-                                            <input
-                                                type="text"
-                                                className={`form-control form-control-sm ${addrErr.line1 ? 'is-invalid' : ''}`}
-                                                placeholder="House no., Street, Area"
-                                                value={addr.line1}
-                                                onChange={(e) => updateAddress(i, "line1", e.target.value)}
-                                            />
-                                            <div className="invalid-feedback">{addrErr.line1}</div>
-                                        </div>
-                                        <div className="col-12">
-                                            <label className="form-label small fw-semibold">Line 2</label>
-                                            <input
-                                                type="text"
-                                                className="form-control form-control-sm"
-                                                placeholder="Landmark, Locality (optional)"
-                                                value={addr.line2}
-                                                onChange={(e) => updateAddress(i, "line2", e.target.value)}
-                                            />
-                                        </div>
-                                        <div className="col-md-4">
-                                            <label className="form-label small fw-semibold">City</label>
-                                            <input
-                                                type="text"
-                                                className={`form-control form-control-sm ${addrErr.city ? 'is-invalid' : ''}`}
-                                                placeholder="Mumbai"
-                                                value={addr.city}
-                                                onChange={(e) => updateAddress(i, "city", e.target.value)}
-                                                maxLength={50}
-                                            />
-                                            <div className="invalid-feedback">{addrErr.city}</div>
-                                        </div>
-                                        <div className="col-md-4">
-                                            <label className="form-label small fw-semibold">State</label>
-                                            <input
-                                                type="text"
-                                                className={`form-control form-control-sm ${addrErr.state ? 'is-invalid' : ''}`}
-                                                placeholder="Maharashtra"
-                                                value={addr.state}
-                                                onChange={(e) => updateAddress(i, "state", e.target.value)}
-                                                maxLength={50}
-                                            />
-                                            <div className="invalid-feedback">{addrErr.state}</div>
-                                        </div>
-                                        <div className="col-md-4">
-                                            <label className="form-label small fw-semibold">Pincode</label>
-                                            <input
-                                                type="text"
-                                                className={`form-control form-control-sm ${addrErr.pincode ? 'is-invalid' : ''}`}
-                                                placeholder="400001"
-                                                value={addr.pincode}
-                                                onChange={(e) => updateAddress(i, "pincode", e.target.value)}
-                                                maxLength={10}
-                                            />
-                                            <div className="invalid-feedback">{addrErr.pincode}</div>
-                                        </div>
-                                        <div className="col-md-6">
-                                            <label className="form-label small fw-semibold">Country</label>
-                                            <input
-                                                type="text"
-                                                className={`form-control form-control-sm ${addrErr.country ? 'is-invalid' : ''}`}
-                                                placeholder="India"
-                                                value={addr.country}
-                                                onChange={(e) => updateAddress(i, "country", e.target.value)}
-                                                maxLength={50}
-                                            />
-                                            <div className="invalid-feedback">{addrErr.country}</div>
+                                        <div className="row g-2">
+                                            <div className="col-md-6">
+                                                <label className="form-label small fw-semibold">Contact Name</label>
+                                                <input
+                                                    type="text"
+                                                    className="form-control form-control-sm"
+                                                    placeholder="Receiver name"
+                                                    value={addr.name}
+                                                    onChange={(e) => updateAddress(i, "name", e.target.value)}
+                                                    maxLength={50}
+                                                />
+                                            </div>
+                                            <div className="col-md-6">
+                                                <label className="form-label small fw-semibold">Contact Phone</label>
+                                                <input
+                                                    type="tel"
+                                                    className={`form-control form-control-sm ${addrErr.phone ? 'is-invalid' : ''}`}
+                                                    placeholder="+91 9876543210"
+                                                    value={addr.phone}
+                                                    onChange={(e) => updateAddress(i, "phone", e.target.value)}
+                                                    maxLength={15}
+                                                />
+                                                <div className="invalid-feedback">{addrErr.phone}</div>
+                                            </div>
+                                            <div className="col-12">
+                                                <label className="form-label small fw-semibold">
+                                                    Line 1 <span className="text-danger">*</span>
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    className={`form-control form-control-sm ${addrErr.line1 ? 'is-invalid' : ''}`}
+                                                    placeholder="House no., Street, Area"
+                                                    value={addr.line1}
+                                                    onChange={(e) => updateAddress(i, "line1", e.target.value)}
+                                                />
+                                                <div className="invalid-feedback">{addrErr.line1}</div>
+                                            </div>
+                                            <div className="col-12">
+                                                <label className="form-label small fw-semibold">Line 2</label>
+                                                <input
+                                                    type="text"
+                                                    className="form-control form-control-sm"
+                                                    placeholder="Landmark, Locality (optional)"
+                                                    value={addr.line2}
+                                                    onChange={(e) => updateAddress(i, "line2", e.target.value)}
+                                                />
+                                            </div>
+                                            <div className="col-md-4">
+                                                <label className="form-label small fw-semibold">City</label>
+                                                <input
+                                                    type="text"
+                                                    className={`form-control form-control-sm ${addrErr.city ? 'is-invalid' : ''}`}
+                                                    placeholder="Mumbai"
+                                                    value={addr.city}
+                                                    onChange={(e) => updateAddress(i, "city", e.target.value)}
+                                                    maxLength={50}
+                                                />
+                                                <div className="invalid-feedback">{addrErr.city}</div>
+                                            </div>
+                                            <div className="col-md-4">
+                                                <label className="form-label small fw-semibold">State</label>
+                                                <input
+                                                    type="text"
+                                                    className={`form-control form-control-sm ${addrErr.state ? 'is-invalid' : ''}`}
+                                                    placeholder="Maharashtra"
+                                                    value={addr.state}
+                                                    onChange={(e) => updateAddress(i, "state", e.target.value)}
+                                                    maxLength={50}
+                                                />
+                                                <div className="invalid-feedback">{addrErr.state}</div>
+                                            </div>
+                                            <div className="col-md-4">
+                                                <label className="form-label small fw-semibold">Pincode</label>
+                                                <input
+                                                    type="text"
+                                                    className={`form-control form-control-sm ${addrErr.pincode ? 'is-invalid' : ''}`}
+                                                    placeholder="400001"
+                                                    value={addr.pincode}
+                                                    onChange={(e) => updateAddress(i, "pincode", e.target.value)}
+                                                    maxLength={10}
+                                                />
+                                                <div className="invalid-feedback">{addrErr.pincode}</div>
+                                            </div>
+                                            <div className="col-md-6">
+                                                <label className="form-label small fw-semibold">Country</label>
+                                                <input
+                                                    type="text"
+                                                    className={`form-control form-control-sm ${addrErr.country ? 'is-invalid' : ''}`}
+                                                    placeholder="India"
+                                                    value={addr.country}
+                                                    onChange={(e) => updateAddress(i, "country", e.target.value)}
+                                                    maxLength={50}
+                                                />
+                                                <div className="invalid-feedback">{addrErr.country}</div>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
                                 );
                             })}
 

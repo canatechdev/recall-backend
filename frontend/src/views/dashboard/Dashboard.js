@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 
+import { useNavigate } from 'react-router-dom'
+
 import { CAvatar, CBadge, CButton, CButtonGroup, CCard, CCardBody, CCol, CProgress, CRow } from '@coreui/react'
 import CIcon from '@coreui/icons-react'
 import { cilCloudDownload, cilGlobeAlt, cilPeople, cilStorage, cilSwapHorizontal, cilWallet } from '@coreui/icons'
@@ -13,24 +15,25 @@ import avatar2 from 'src/assets/images/avatars/2.jpg'
 import avatar3 from 'src/assets/images/avatars/3.jpg'
 
 const Dashboard = () => {
+  const navigate = useNavigate()
   const [trafficRange, setTrafficRange] = useState('Month')
   const [summary, setSummary] = useState(null)
   const [summaryError, setSummaryError] = useState('')
 
   useEffect(() => {
     let alive = true
-    ;(async () => {
-      try {
-        setSummaryError('')
-        const res = await get_dashboard_summary()
-        if (!alive) return
-        if (res?.status === 200) setSummary(res.data)
-      } catch (e) {
-        if (!alive) return
-        setSummary(null)
-        setSummaryError(e?.response?.data?.message || e?.message || 'Failed to load dashboard data')
-      }
-    })()
+      ; (async () => {
+        try {
+          setSummaryError('')
+          const res = await get_dashboard_summary()
+          if (!alive) return
+          if (res?.status === 200) setSummary(res.data)
+        } catch (e) {
+          if (!alive) return
+          setSummary(null)
+          setSummaryError(e?.response?.data?.message || e?.message || 'Failed to load dashboard data')
+        }
+      })()
     return () => {
       alive = false
     }
@@ -58,6 +61,7 @@ const Dashboard = () => {
         delta: Number.isFinite(Number(usersVerified)) ? `${fmt(usersVerified)} verified` : '',
         color: 'success',
         icon: cilPeople,
+        to: '/users',
         spark: 'M2,26 C10,26 12,14 20,14 C28,14 28,24 36,24 C44,24 46,10 54,10 C62,10 64,24 72,24 C80,24 86,18 94,18',
       },
       {
@@ -66,14 +70,16 @@ const Dashboard = () => {
         delta: '',
         color: 'success',
         icon: cilWallet,
+        to: '/products',
         spark: 'M2,22 C12,22 14,12 24,12 C34,12 34,20 44,20 C54,20 56,10 66,10 C76,10 80,18 94,18',
       },
       {
-        label: 'SELL LISTINGS',
+        label: 'LEADS GENERATED',
         value: fmt(listingsTotal),
         delta: '',
         color: 'success',
         icon: cilSwapHorizontal,
+        to: '/leads',
         spark: 'M2,12 C14,12 16,18 26,18 C36,18 38,10 48,10 C58,10 60,22 70,22 C80,22 84,26 94,26',
       },
       {
@@ -82,6 +88,7 @@ const Dashboard = () => {
         delta: Number.isFinite(Number(sellConfigsTotal)) ? `${fmt(sellConfigsTotal)} sell configs` : '',
         color: 'success',
         icon: cilGlobeAlt,
+        to: '/models/manage',
         spark: 'M2,20 C10,20 12,10 22,10 C32,10 34,24 44,24 C54,24 56,14 66,14 C76,14 78,22 88,22 C92,22 94,20 94,20',
       },
     ]
@@ -163,8 +170,30 @@ const Dashboard = () => {
     </svg>
   )
 
-  const StatCard = ({ label, value, delta, color, icon, spark }) => (
-    <CCard className="border-0 shadow-sm rounded-4 h-100">
+  const StatCard = ({ label, value, delta, color, icon, spark, to }) => (
+    <CCard
+      className="border-0 shadow-sm rounded-4 h-100"
+      role={to ? 'button' : undefined}
+      tabIndex={to ? 0 : undefined}
+      style={to ? { cursor: 'pointer' } : undefined}
+      onClick={
+        to
+          ? () => {
+            navigate(to)
+          }
+          : undefined
+      }
+      onKeyDown={
+        to
+          ? (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              navigate(to)
+            }
+          }
+          : undefined
+      }
+    >
       <CCardBody className="p-3">
         <div className="d-flex align-items-start justify-content-between">
           <div>

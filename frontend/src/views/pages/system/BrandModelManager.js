@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { CIcon } from "@coreui/icons-react";
 import {
     CModal,
@@ -78,11 +79,11 @@ function InlineForm({ fields, onSave, onCancel, loading }) {
                                     value={vals[f.key]}
                                     onChange={(e) => set(f.key, e.target.value)}
                                 >
-                                {f.options.map((o) => (
-                                    <option key={o.value ?? o} value={o.value ?? o}>
-                                        {o.label ?? o}
-                                    </option>
-                                ))}
+                                    {f.options.map((o) => (
+                                        <option key={o.value ?? o} value={o.value ?? o}>
+                                            {o.label ?? o}
+                                        </option>
+                                    ))}
                                 </select>
                                 {attempted && requiredMissing(f) ? (
                                     <div className="invalid-feedback">{f.label} is required.</div>
@@ -166,7 +167,16 @@ function Breadcrumb({ items }) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 export default function BrandModelManager() {
+    const [searchParams, setSearchParams] = useSearchParams();
     const [toast, setToast] = useState(null);
+
+    const setManagerParams = ({ category, brand, series }) => {
+        const next = new URLSearchParams();
+        if (category) next.set('category', category);
+        if (brand) next.set('brand', brand);
+        if (series) next.set('series', series);
+        setSearchParams(next, { replace: true });
+    };
 
     const showToast = (type, msg) => {
         setToast({ type, msg });
@@ -269,29 +279,35 @@ export default function BrandModelManager() {
     };
 
     // ── Selections ───────────────────────────────────────────
-    const selectCategory = (cat) => {
+    const selectCategory = (cat, opts = {}) => {
+        const { syncUrl = true } = opts;
         setSelectedCategory(cat);
         setSelectedBrand(null);
         setSelectedSeries(null);
         setSeries([]); setModels([]);
         setShowAddSeries(false); setShowAddModel(false);
         setEditingSeries(null);
+        if (syncUrl) setManagerParams({ category: cat.slug });
         fetchBrands(cat.slug);
     };
 
-    const selectBrand = (brand) => {
+    const selectBrand = (brand, opts = {}) => {
+        const { syncUrl = true } = opts;
         setSelectedBrand(brand);
         setSelectedSeries(null);
         setModels([]);
         setShowAddSeries(false); setShowAddModel(false);
         setEditingSeries(null);
+        if (syncUrl) setManagerParams({ category: selectedCategory?.slug, brand: brand.slug });
         fetchSeries(brand.slug);
     };
 
-    const selectSeries = (s) => {
+    const selectSeries = (s, opts = {}) => {
+        const { syncUrl = true } = opts;
         setSelectedSeries(s);
         setShowAddModel(false);
         setEditingSeries(null);
+        if (syncUrl) setManagerParams({ category: selectedCategory?.slug, brand: selectedBrand?.slug, series: s.slug });
         fetchModels(s.slug);
     };
 
@@ -333,7 +349,7 @@ export default function BrandModelManager() {
 
     const handleDeleteSeries = async (s) => {
         if (!s?.id) return;
-        if (!confirm(`Delete series "${s.name}"? This will hide it from the list.`)) return;
+        if (!window.confirm('Are you sure want to delete this?')) return;
         try {
             await delete_series(s.id);
             showToast("success", "Series deleted");
@@ -530,14 +546,48 @@ export default function BrandModelManager() {
     // ── Init ─────────────────────────────────────────────────
     useEffect(() => { fetchCategories(); }, []);
 
+    // Restore selection from URL query params on refresh
+    useEffect(() => {
+        if (!categories?.length) return;
+        const categorySlug = searchParams.get('category');
+        if (!categorySlug) return;
+        if (selectedCategory?.slug === categorySlug) return;
+        const cat = categories.find((c) => String(c?.slug || '') === String(categorySlug));
+        if (!cat) return;
+        selectCategory(cat, { syncUrl: false });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [categories]);
+
+    useEffect(() => {
+        if (!brands?.length) return;
+        const brandSlug = searchParams.get('brand');
+        if (!brandSlug) return;
+        if (selectedBrand?.slug === brandSlug) return;
+        const b = brands.find((x) => String(x?.slug || '') === String(brandSlug));
+        if (!b) return;
+        selectBrand(b, { syncUrl: false });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [brands]);
+
+    useEffect(() => {
+        if (!series?.length) return;
+        const seriesSlug = searchParams.get('series');
+        if (!seriesSlug) return;
+        if (selectedSeries?.slug === seriesSlug) return;
+        const s = series.find((x) => String(x?.slug || '') === String(seriesSlug));
+        if (!s) return;
+        selectSeries(s, { syncUrl: false });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [series]);
+
     // ── Determine active panel ───────────────────────────────
     // 0=categories, 1=brands, 2=series, 3=models
     const activePanel = selectedSeries ? 3 : selectedBrand ? 2 : selectedCategory ? 1 : 0;
 
     const breadcrumbItems = [
-        { label: "Categories", onClick: activePanel > 0 ? () => { setSelectedCategory(null); setSelectedBrand(null); setSelectedSeries(null); setSeries([]); setModels([]); setBrands([]); } : null },
-        ...(selectedCategory ? [{ label: selectedCategory.name, onClick: activePanel > 1 ? () => { setSelectedBrand(null); setSelectedSeries(null); setModels([]); setSeries([]); } : null }] : []),
-        ...(selectedBrand ? [{ label: selectedBrand.name, onClick: activePanel > 2 ? () => { setSelectedSeries(null); setModels([]); } : null }] : []),
+        { label: "Categories", onClick: activePanel > 0 ? () => { setSelectedCategory(null); setSelectedBrand(null); setSelectedSeries(null); setSeries([]); setModels([]); setBrands([]); setManagerParams({}); } : null },
+        ...(selectedCategory ? [{ label: selectedCategory.name, onClick: activePanel > 1 ? () => { setSelectedBrand(null); setSelectedSeries(null); setModels([]); setSeries([]); setManagerParams({ category: selectedCategory.slug }); } : null }] : []),
+        ...(selectedBrand ? [{ label: selectedBrand.name, onClick: activePanel > 2 ? () => { setSelectedSeries(null); setModels([]); setManagerParams({ category: selectedCategory?.slug, brand: selectedBrand.slug }); } : null }] : []),
         ...(selectedSeries ? [{ label: selectedSeries.name }] : []),
     ];
 
@@ -812,7 +862,7 @@ export default function BrandModelManager() {
                                 <InlineForm
                                     fields={[
                                         { key: "name", label: "Model Name", required: true, placeholder: "e.g. Galaxy S24 Ultra", col: "col-md-4" },
-                                        { key: "image", label: "Model Image", type: "file", col: "col-md-4" },
+                                        { key: "image", label: "Model Image", type: "file", required: true, col: "col-md-4" },
                                     ]}
                                     onSave={saveModel}
                                     onCancel={() => setShowAddModel(false)}
@@ -1006,7 +1056,7 @@ function ModelTable({ models, loading, emptyMsg, refreshModels, showToast }) {
 
     const handleDeleteModel = async (m) => {
         if (!m?.id) return;
-        if (!confirm(`Delete model "${m.name}"? This cannot be undone.`)) return;
+        if (!window.confirm('Are you sure want to delete this?')) return;
         try {
             await delete_model(m.id);
             showToast?.('success', 'Model deleted');
@@ -1068,7 +1118,7 @@ function ModelTable({ models, loading, emptyMsg, refreshModels, showToast }) {
     };
 
     const handleDeleteConfig = async (id) => {
-        if (!confirm('Delete this config?')) return;
+        if (!window.confirm('Are you sure want to delete this?')) return;
         try {
             await delete_model_config(id);
             fetchConfigs(configModelSlug);
@@ -1219,7 +1269,7 @@ function ModelTable({ models, loading, emptyMsg, refreshModels, showToast }) {
                                         ) : (
                                             <table className="table table-sm table-bordered mb-0">
                                                 <thead>
-                                                        <tr><th>SR.NO</th><th>Config</th><th>Base Price</th><th>Active</th><th>Actions</th></tr>
+                                                    <tr><th>SR.NO</th><th>Config</th><th>Base Price</th><th>Active</th><th>Actions</th></tr>
                                                 </thead>
                                                 <tbody>
                                                     {configs.map((c, idx) => (

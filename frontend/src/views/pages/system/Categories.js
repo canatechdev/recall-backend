@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { CButton, CFormInput, CFormSelect } from '@coreui/react'
 import { delete_category, get_categories, create_category, update_category, get_brands_all, get_category_brand_mappings, update_category_brand_mappings } from '../../../api/system_service'
 import CIcon from '@coreui/icons-react'
@@ -8,15 +8,19 @@ import ThemedTablePage from 'src/components/ThemedTablePage'
 const Categories = () => {
     const [categories, setCategories] = useState([])
     const [isCategory, setIsCategory] = useState(false)
+    const [loading, setLoading] = useState(false)
+    const [attempted, setAttempted] = useState(false)
     const [name, setName] = useState("")
     const [parent, setParent] = useState("")
-    const [file, setFile] = useState("")
+    const [file, setFile] = useState(null)
     const [toast, setToast] = useState(null)
     const [isEdit, setIsEdit] = useState(false)
     const [editId, setEditId] = useState(null)
     const [url, setUrl] = useState('')
 
-    const [rowMenuId, setRowMenuId] = useState(null)
+    const [rowMenu, setRowMenu] = useState(null) // { id, rect }
+    const [rowMenuPos, setRowMenuPos] = useState({ top: 0, left: 0 })
+    const rowMenuRef = useRef(null)
 
     const [mappingCategory, setMappingCategory] = useState(null)
     const [allBrands, setAllBrands] = useState([])
@@ -30,10 +34,12 @@ const Categories = () => {
         setIsEdit(false);
         setName('');
         setParent('');
-        setFile('');
+        setFile(null);
         setUrl('');
         setEditId(null);
         setMappingCategory(null);
+        setAttempted(false);
+        setRowMenu(null);
     }
 
     const editCategory = ({ id, name, url, parent_id, status }) => {
@@ -45,7 +51,9 @@ const Categories = () => {
         setParent(parent_id || '');
         setName(name);
         setUrl(url);
+        setFile(null);
         setMappingCategory(null);
+        setAttempted(false);
     }
     const showToast = (type, msg) => {
         setToast({ type, msg });
@@ -54,12 +62,15 @@ const Categories = () => {
 
     const fetchCategories = async () => {
         try {
+            setLoading(true)
             const response = await get_categories(false)
             if (response.status === 200) {
                 setCategories(response.data)
             }
         } catch (err) {
             console.log(err)
+        } finally {
+            setLoading(false)
         }
     }
 
@@ -68,6 +79,13 @@ const Categories = () => {
     }, [])
 
     const handleSubmit = () => {
+        setAttempted(true)
+        const nameError = !(name || '').trim() ? 'Category name is required.' : ''
+        const imageError = !isEdit && !file ? 'Image is required.' : ''
+        if (nameError || imageError) {
+            showToast('danger', 'Please fill the required fields.')
+            return
+        }
         if (isEdit) {
             updateCategoryHandler();
         } else {
@@ -117,7 +135,7 @@ const Categories = () => {
 
     const deleteCategory = async (id) => {
         if (!id) return
-        if (!confirm('Delete this category?')) return
+        if (!window.confirm('Are you sure want to delete this?')) return
         try {
             const res = await delete_category(id)
             const mode = res?.data?.mode
@@ -138,7 +156,7 @@ const Categories = () => {
         setIsEdit(false)
         setEditId(null)
         setMappingCategory({ id: cat.id, name: cat.name })
-        setRowMenuId(null)
+        setRowMenu(null)
 
         try {
             setMappingLoading(true)
@@ -196,6 +214,74 @@ const Categories = () => {
 
     const rows = filteredCategories.map((c, idx) => ({ ...c, _idx: idx + 1 }))
 
+    const rowMenuRow = useMemo(() => {
+        if (!rowMenu?.id) return null
+        return rows.find((r) => String(r.id) === String(rowMenu.id)) || null
+    }, [rowMenu, rows])
+
+    const openRowMenu = (r, e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        const rect = e.currentTarget.getBoundingClientRect()
+        setRowMenu((prev) => (prev?.id === r.id ? null : { id: r.id, rect }))
+    }
+
+    useEffect(() => {
+        if (!rowMenu) return
+
+        const handleDocMouseDown = (e) => {
+            const menuEl = rowMenuRef.current
+            if (menuEl && menuEl.contains(e.target)) return
+            if (e.target?.closest?.('[data-row-menu-btn]')) return
+            setRowMenu(null)
+        }
+
+        const closeOnScrollOrResize = () => {
+            setRowMenu(null)
+        }
+
+        document.addEventListener('mousedown', handleDocMouseDown)
+        window.addEventListener('scroll', closeOnScrollOrResize, true)
+        window.addEventListener('resize', closeOnScrollOrResize)
+
+        return () => {
+            document.removeEventListener('mousedown', handleDocMouseDown)
+            window.removeEventListener('scroll', closeOnScrollOrResize, true)
+            window.removeEventListener('resize', closeOnScrollOrResize)
+        }
+    }, [rowMenu])
+
+    useEffect(() => {
+        if (!rowMenu?.rect) return
+
+        const rect = rowMenu.rect
+        const padding = 8
+
+        const place = () => {
+            const menuEl = rowMenuRef.current
+            const menuHeight = menuEl?.offsetHeight || 140
+            const menuWidth = menuEl?.offsetWidth || 180
+
+            let top = rect.bottom + 6
+            if (top + menuHeight + padding > window.innerHeight) {
+                top = Math.max(padding, rect.top - menuHeight - 6)
+            }
+
+            let left = rect.right - menuWidth
+            if (left < padding) left = padding
+            if (left + menuWidth + padding > window.innerWidth) {
+                left = Math.max(padding, window.innerWidth - menuWidth - padding)
+            }
+
+            setRowMenuPos({ top, left })
+        }
+
+        // Run once immediately, then once after render to get real menu size.
+        place()
+        const raf = window.requestAnimationFrame(place)
+        return () => window.cancelAnimationFrame(raf)
+    }, [rowMenu])
+
     const columns = [
         { key: '_idx', label: 'SR.NO', headerClassName: 'text-center', cellClassName: 'text-center', render: (r) => r._idx },
         { key: 'name', label: 'Name', render: (r) => r.name },
@@ -221,34 +307,15 @@ const Categories = () => {
             cellClassName: 'text-center',
             render: (r) => (
                 <div className="d-flex justify-content-center">
-                    <div className="position-relative">
-                        <button
-                            type="button"
-                            className="btn btn-sm btn-outline-secondary"
-                            onClick={() => setRowMenuId((p) => (p === r.id ? null : r.id))}
-                            title="Actions"
-                        >
-                            ⋮
-                        </button>
-
-                        {rowMenuId === r.id && (
-                            <div
-                                className="dropdown-menu show"
-                                style={{ position: 'absolute', right: 0, top: '110%', zIndex: 20 }}
-                            >
-                                <button className="dropdown-item" onClick={() => { setRowMenuId(null); editCategory(r); }}>
-                                    Edit
-                                </button>
-                                <button className="dropdown-item" onClick={() => { setRowMenuId(null); openMapBrands(r); }}>
-                                    Map Brands
-                                </button>
-                                <div className="dropdown-divider" />
-                                <button className="dropdown-item text-danger" onClick={() => { setRowMenuId(null); deleteCategory(r.id); }}>
-                                    Delete
-                                </button>
-                            </div>
-                        )}
-                    </div>
+                    <button
+                        type="button"
+                        className="btn btn-sm btn-outline-secondary"
+                        data-row-menu-btn
+                        onClick={(e) => openRowMenu(r, e)}
+                        title="Actions"
+                    >
+                        ⋮
+                    </button>
                 </div>
             ),
         },
@@ -280,65 +347,80 @@ const Categories = () => {
         </div>
     )
 
-    const topContent = isCategory ? (
-        <div className="row g-2 mb-4 align-items-center">
-            <div className="col-md-4">
-                <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="form-control"
-                    placeholder="Category name"
-                />
+    const topContent = (
+        <>
+            <div className="d-flex justify-content-between align-items-center mb-3">
+                <h4 className="fw-bold mb-0 text-uppercase">Manage Categories</h4>
             </div>
-            <div className="col-md-3">
-                <input
-                    type="file"
-                    onChange={(e) => setFile(e.target.files[0])}
-                    className="form-control"
-                />
-            </div>
-            {url && (
-                <div className="col-md-2">
-                    <img
-                        style={{ width: '50px', marginTop: '10px' }}
-                        src={import.meta.env.VITE_API_URL + 'uploads/' + url}
-                        alt="Category"
-                    />
-                </div>
-            )}
 
-            {isEdit === false && (
-                <div className="col-md-3">
-                    <select
-                        value={parent}
-                        onChange={(e) => setParent(e.target.value)}
-                        className="form-select"
-                    >
-                        <option value="">No Parent</option>
-                        {categories
-                            .filter((c) => c.id !== editId)
-                            .map((cat) => (
-                                <option key={cat.id} value={cat.id}>
-                                    {cat.name}
-                                </option>
-                            ))}
-                    </select>
-                </div>
-            )}
+            {isCategory ? (
+                <div className="row g-2 mb-4 align-items-center">
+                    <div className="col-md-4">
+                        <input
+                            type="text"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            className={`form-control ${attempted && !(name || '').trim() ? 'is-invalid' : ''}`}
+                            placeholder="Category name"
+                        />
+                        {attempted && !(name || '').trim() ? (
+                            <div className="invalid-feedback d-block">Category name is required.</div>
+                        ) : null}
+                    </div>
+                    <div className="col-md-3">
+                        <input
+                            type="file"
+                            onChange={(e) => setFile(e.target.files?.[0] || null)}
+                            className={`form-control ${attempted && !isEdit && !file ? 'is-invalid' : ''}`}
+                            accept="image/*"
+                        />
+                        {attempted && !isEdit && !file ? (
+                            <div className="invalid-feedback d-block">Image is required.</div>
+                        ) : null}
+                    </div>
+                    {url && (
+                        <div className="col-md-2">
+                            <img
+                                style={{ width: '50px', marginTop: '10px' }}
+                                src={import.meta.env.VITE_API_URL + 'uploads/' + url}
+                                alt="Category"
+                            />
+                        </div>
+                    )}
 
-            <div className={`col-md-${isEdit ? '3' : '2'} d-flex justify-content-end`}>
-                <button onClick={handleSubmit} className="btn btn-success me-2">
-                    <CIcon icon={cilNoteAdd} className="me-1" />
-                    {isEdit ? 'Update' : 'Save'}
-                </button>
-                <button onClick={toggleCategory} className="btn btn-outline-secondary">
-                    <CIcon icon={cilX} className="me-1" />
-                    Cancel
-                </button>
-            </div>
-        </div>
-    ) : null
+                    {isEdit === false && (
+                        <div className="col-md-3">
+                            <select
+                                value={parent}
+                                onChange={(e) => setParent(e.target.value)}
+                                className="form-select"
+                            >
+                                <option value="">No Parent</option>
+                                {categories
+                                    .filter((c) => c.id !== editId)
+                                    .map((cat) => (
+                                        <option key={cat.id} value={cat.id}>
+                                            {cat.name}
+                                        </option>
+                                    ))}
+                            </select>
+                        </div>
+                    )}
+
+                    <div className={`col-md-${isEdit ? '3' : '2'} d-flex justify-content-end`}>
+                        <button onClick={handleSubmit} className="btn btn-success me-2">
+                            <CIcon icon={cilNoteAdd} className="me-1" />
+                            {isEdit ? 'Update' : 'Save'}
+                        </button>
+                        <button onClick={toggleCategory} className="btn btn-outline-secondary">
+                            <CIcon icon={cilX} className="me-1" />
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            ) : null}
+        </>
+    )
 
     const footerLeft = (
         <div className="small text-medium-emphasis">
@@ -425,11 +507,36 @@ const Categories = () => {
                 columns={columns}
                 rows={rows}
                 rowKey={(r) => r.id}
-                loading={false}
+                loading={loading}
                 emptyText="No Categories Found"
                 topContent={topContent}
                 footerLeft={footerLeft}
             />
+
+            {rowMenu && rowMenuRow ? (
+                <div
+                    ref={rowMenuRef}
+                    className="dropdown-menu show"
+                    style={{
+                        position: 'fixed',
+                        top: rowMenuPos.top,
+                        left: rowMenuPos.left,
+                        zIndex: 3000,
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <button className="dropdown-item" onClick={() => { setRowMenu(null); editCategory(rowMenuRow); }}>
+                        Edit
+                    </button>
+                    <button className="dropdown-item" onClick={() => { setRowMenu(null); openMapBrands(rowMenuRow); }}>
+                        Map Brands
+                    </button>
+                    <div className="dropdown-divider" />
+                    <button className="dropdown-item text-danger" onClick={() => { setRowMenu(null); deleteCategory(rowMenuRow.id); }}>
+                        Delete
+                    </button>
+                </div>
+            ) : null}
         </div>
     )
 }

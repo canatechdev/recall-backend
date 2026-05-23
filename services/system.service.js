@@ -381,7 +381,7 @@ exports.updateCategoryBrandMappings = async (categoryId, brandIds = []) => {
             if (missing.length) throw { status: 404, message: `Invalid brand id(s): ${missing.join(', ')}` };
         }
         await client.query('DELETE FROM brand_categories WHERE category_id=$1', [categoryId]);
-        
+
         if (uniqueBrandIds.length) {
             await client.query(
                 `INSERT INTO brand_categories(brand_id, category_id)

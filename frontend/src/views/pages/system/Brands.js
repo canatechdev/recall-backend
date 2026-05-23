@@ -16,6 +16,8 @@ const Brands = () => {
     const [brands, setBrands] = useState([])
     const [categories, setCategories] = useState([])
     const [isBrand, setIsBrand] = useState(false)
+    const [loading, setLoading] = useState(false)
+    const [attempted, setAttempted] = useState(false)
     const [toast, setToast] = useState(null)
 
     const [name, setName] = useState("")
@@ -43,6 +45,7 @@ const Brands = () => {
         setName('')
         setFile(null)
         setUrl('')
+        setAttempted(false)
     }
 
     const editBrand = ({ id, name, url }) => {
@@ -53,28 +56,35 @@ const Brands = () => {
         setName(name)
         setUrl(url || '')
         setFile(null)
+        setAttempted(false)
     }
 
-    const fetchBrands = async (catId) => {
+    const fetchBrands = async (catId, { silent } = {}) => {
         try {
+            if (!silent) setLoading(true)
             const response = await get_cat_brands(catId)
             if (response.status === 200) setBrands(response.data)
         } catch (err) {
             console.log(err)
+        } finally {
+            if (!silent) setLoading(false)
         }
     }
     const fetchCategories = async () => {
         try {
+            setLoading(true)
             const response = await get_categories(true)
             if (response.status === 200) {
                 setCategories(response.data);
                 const firstSlug = response.data[0]?.slug || ''
                 setCategory(firstSlug)
-                if (firstSlug) fetchBrands(firstSlug)
+                if (firstSlug) await fetchBrands(firstSlug, { silent: true })
                 else setBrands([])
             }
         } catch (err) {
             console.log(err)
+        } finally {
+            setLoading(false)
         }
     }
 
@@ -166,13 +176,20 @@ const Brands = () => {
     }
 
     const handleSubmit = () => {
+        setAttempted(true)
+        const nameError = !(name || '').trim() ? 'Brand name is required.' : ''
+        const imageError = !isEdit && !file ? 'Image is required.' : ''
+        if (nameError || imageError) {
+            showToast('danger', 'Please fill the required fields.')
+            return
+        }
         if (isEdit) updateBrandHandler();
         else createBrandHandler();
     }
 
     const deleteBrand = async (id) => {
         if (!id) return
-        if (!confirm('Delete this brand?')) return
+        if (!window.confirm('Are you sure want to delete this?')) return
         try {
             await delete_brand(id)
             showToast('success', 'Brand deleted')
@@ -336,20 +353,37 @@ const Brands = () => {
             {isBrand && (
                 <div className="row g-2 mb-4 align-items-center">
                     <div className="col-md-4">
-                        <input
-                            type="text"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            className="form-control"
-                            placeholder="Brand name"
-                        />
+                        {(() => {
+                            const nameError = attempted && !(name || '').trim() ? 'Brand name is required.' : ''
+                            return (
+                                <input
+                                    type="text"
+                                    value={name}
+                                    onChange={(e) => setName(e.target.value)}
+                                    className={`form-control ${nameError ? 'is-invalid' : ''}`}
+                                    placeholder="Brand name"
+                                />
+                            )
+                        })()}
+                        {attempted && !(name || '').trim() ? (
+                            <div className="invalid-feedback d-block">Brand name is required.</div>
+                        ) : null}
                     </div>
                     <div className="col-md-3">
-                        <input
-                            type="file"
-                            onChange={(e) => setFile(e.target.files?.[0] || null)}
-                            className="form-control"
-                        />
+                        {(() => {
+                            const imageError = attempted && !isEdit && !file ? 'Image is required.' : ''
+                            return (
+                                <input
+                                    type="file"
+                                    onChange={(e) => setFile(e.target.files?.[0] || null)}
+                                    className={`form-control ${imageError ? 'is-invalid' : ''}`}
+                                    accept="image/*"
+                                />
+                            )
+                        })()}
+                        {attempted && !isEdit && !file ? (
+                            <div className="invalid-feedback d-block">Image is required.</div>
+                        ) : null}
                     </div>
 
                     {url && (
@@ -404,6 +438,7 @@ const Brands = () => {
                 topContent={topContent}
                 columns={columns}
                 rows={rows}
+                loading={loading}
                 rowKey={(b) => b.id}
                 emptyText={brands.length === 0 ? 'No Brands Found' : 'No Brands match your filters'}
                 footerLeft={
