@@ -328,7 +328,7 @@ const Products = ({ onAddClick }) => {
                                                 .map((img) => (
                                                     <div key={img.id} className="position-relative">
                                                         <img
-                                                            src={img.url}
+                                                            src={import.meta.env.VITE_API_URL+ 'uploads/' + img.url}
                                                             alt={img.alt_text || ''}
                                                             style={{
                                                                 width: 72,
