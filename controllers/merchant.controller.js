@@ -80,3 +80,34 @@ exports.postRequote = asyncHandler(async (req, res) => {
     const data = await merchantService.postRequote(req.query);
     res.status(200).json(data);
 });
+
+exports.getMerchantAgents = asyncHandler(async (req, res) => {
+    const data = await merchantService.getMerchantAgents(req.user);
+    res.status(200).json(data);
+});
+
+exports.submitRequoteAnswers = asyncHandler(async (req, res) => {
+    const context = req.query.context;
+
+    const listing_id = req.body.listing_id ?? req.body.listingId;
+    let answers = req.body.answers;
+    if (typeof answers === 'string') {
+        try {
+            answers = JSON.parse(answers);
+        } catch {
+            throw { status: 400, message: 'Invalid JSON in answers' };
+        }
+    }
+
+    const filesByField = new Map();
+    for (const f of (req.files || [])) filesByField.set(f.fieldname, f);
+
+    const data = await merchantService.submitRequoteAnswers({
+        user: req.user,
+        context,
+        listing_id,
+        answers,
+        filesByField,
+    });
+    res.status(200).json(data);
+});

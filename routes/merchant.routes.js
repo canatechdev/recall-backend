@@ -3,6 +3,7 @@ const merchantController = require('../controllers/merchant.controller');
 const { reqBody } = require('../middlewares/req_body.middleware')
 const authMiddleware = require('../middlewares/auth.middleware')
 const allowRoles = require('../middlewares/snippets.middleware').allowRoles;
+const upload = require('../config/multer.config');
 // USERS ROUTES
 
 router.post('/login', reqBody, merchantController.loginMerchant);
@@ -22,8 +23,13 @@ router.post('/invite_agent', reqBody, authMiddleware, merchantController.inviteM
 router.get('/verify_agent', merchantController.verifyMerchantAgent);
 router.post('/register_agent', reqBody, merchantController.registerMerchantAgent);
 
+router.get('/get_agents', authMiddleware, allowRoles('merchant'), merchantController.getMerchantAgents);
+
 router.get('/requote/questions',authMiddleware, allowRoles('merchant', 'agent'), merchantController.getRequoteQuestions);
 router.post('/requote',authMiddleware, allowRoles('merchant', 'agent'), merchantController.postRequote);
+
+// Accept answered inspection questions (supports multipart/form-data for proof images)
+router.post('/requote/questions', authMiddleware, allowRoles('merchant', 'agent'), upload.any(), merchantController.submitRequoteAnswers);
 
 
 module.exports = router;

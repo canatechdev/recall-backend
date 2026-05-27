@@ -82,7 +82,7 @@ exports.verifyOTP = async (data) => {
     }
     // Verify OTP
     // const isMatch = await bcrypt.compare(otp, otpRecord.otp_hash);
-
+    
     const isMatch = otp === otpRecord.otp_hash;
     if (!isMatch) {
         throw { status: 401, message: "Invalid OTP" };
@@ -116,12 +116,11 @@ exports.resendOTP = async (data) => {
 }
 // REQUEST OTP
 exports.requestOTP = async (data) => {
-    const { email } = data;
+    const email = data.email.toLowerCase();
 
     if (!email) {
         throw { status: 400, message: "Email is required" };
     }
-
     const existing = await pool.query(`SELECT id, otp_hash, created_at FROM auth_otp WHERE email=$1 AND created_at BETWEEN NOW()- INTERVAL '10 min' AND NOW() ORDER BY created_at DESC`, [email]);
 
     if (existing.rowCount > 2) {

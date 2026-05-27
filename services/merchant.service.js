@@ -447,8 +447,241 @@ exports.getRequoteQuestions = async (query) => {
     }
 };
 
-exports.postRequote = async ({listing_id, answers}) => {
-    
+exports.getMerchantAgents = async ({ userId, roles }) => {
+    if (!userId || !Array.isArray(roles) || !roles.includes('merchant')) {
+        throw { status: 403, message: 'Access denied' };
+    }
+
+    const result = await pool.query(
+        `
+        SELECT ma.agent_user_id id,
+               u.email,
+               u.phone,
+               up.first_name,
+               up.last_name,
+               up.avatar_url,
+               ma.is_active,
+               ma.joined_at
+        FROM merchant_agents ma
+        JOIN users u ON u.id=ma.agent_user_id
+        LEFT JOIN user_profile up ON up.user_id=u.id
+        WHERE ma.merchant_id=$1
+        ORDER BY ma.joined_at DESC
+        `,
+        [userId],
+    );
+    return result.rows;
+};
+
+const resolveMerchantIdFromAuth = async ({ userId, roles }) => {
+    if (!userId) throw { status: 401, message: 'Invalid session' };
+    if (!Array.isArray(roles)) throw { status: 401, message: 'Invalid session' };
+
+    if (roles.includes('merchant')) return userId;
+    if (!roles.includes('agent')) throw { status: 403, message: 'Access denied' };
+
+    const res = await pool.query(
+        `SELECT merchant_id
+         FROM merchant_agents
+         WHERE agent_user_id=$1 AND is_active=true
+         ORDER BY joined_at DESC
+         LIMIT 1`,
+        [userId],
+    );
+    if (res.rowCount === 0) throw { status: 403, message: 'Agent is not linked to a merchant' };
+    return res.rows[0].merchant_id;
+};
+
+const resolveQuestionContextIds = async (contextSlug) => {
+    const normalized = contextSlug ? String(contextSlug).trim().toLowerCase() : null;
+    if (!normalized) throw { status: 400, message: 'context is required' };
+
+    const [ctxRes, bothRes] = await Promise.all([
+        pool.query(
+            `SELECT id FROM enum_master WHERE master_name='question_context' AND option_name=$1`,
+            [normalized],
+        ),
+        pool.query(
+            `SELECT id FROM enum_master WHERE master_name='question_context' AND option_name='both'`,
+        ),
+    ]);
+    if (ctxRes.rowCount === 0) throw { status: 400, message: 'Invalid context' };
+    if (bothRes.rowCount === 0) throw { status: 500, message: 'Missing question_context=both in enum_master' };
+    return { contextId: ctxRes.rows[0].id, bothId: bothRes.rows[0].id };
+};
+
+const insertImageFromUpload = async (client, { file, alt_text, uploaded_by } = {}) => {
+    if (!file?.filename) throw { status: 400, message: 'Image file is required' };
+    const res = await client.query(
+        `INSERT INTO images(url, alt_text, uploaded_by)
+         VALUES ($1,$2,$3)
+         RETURNING id, url, alt_text`,
+        [file.filename, alt_text || null, uploaded_by || null],
+    );
+    return res.rows[0];
+};
+
+exports.submitRequoteAnswers = async ({ user, context, listing_id, answers, filesByField } = {}) => {
+    if (!listing_id) throw { status: 400, message: 'listing_id is required' };
+    if (!Array.isArray(answers) || answers.length === 0) throw { status: 400, message: 'answers must be a non-empty array' };
+    if (!filesByField || typeof filesByField.get !== 'function') filesByField = new Map();
+
+    const merchant_id = await resolveMerchantIdFromAuth(user);
+    const { contextId, bothId } = await resolveQuestionContextIds(context);
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        const listingRes = await client.query(
+            `SELECT id, base_price, assigned_merchant_id
+             FROM sell_listings
+             WHERE id=$1
+             LIMIT 1`,
+            [listing_id],
+        );
+        if (listingRes.rowCount === 0) throw { status: 404, message: 'Listing not found' };
+        if (String(listingRes.rows[0].assigned_merchant_id || '') !== String(merchant_id)) {
+            throw { status: 403, message: 'Listing is not assigned to this merchant' };
+        }
+
+        const questionIds = [...new Set(
+            answers
+                .map(a => a?.question_id ?? a?.questionId)
+                .filter(v => v != null)
+                .map(v => Number(v))
+                .filter(n => Number.isFinite(n))
+        )];
+        if (questionIds.length === 0) throw { status: 400, message: 'answers[].question_id is required' };
+
+        const questionsRes = await client.query(
+            `SELECT id, context
+             FROM sell_questions
+             WHERE id = ANY($1::bigint[])`,
+            [questionIds],
+        );
+        if (questionsRes.rowCount !== questionIds.length) {
+            throw { status: 400, message: 'One or more question_id values are invalid' };
+        }
+        const ctxByQuestionId = new Map(questionsRes.rows.map(r => [String(r.id), String(r.context)]));
+        for (const qid of questionIds) {
+            const qctx = ctxByQuestionId.get(String(qid));
+            if (qctx !== String(contextId) && qctx !== String(bothId)) {
+                throw { status: 400, message: `Question ${qid} not allowed for context=${context}` };
+            }
+        }
+
+        // Upsert answers + optional proof images.
+        for (const ans of answers) {
+            const question_id = ans?.question_id ?? ans?.questionId;
+            if (!question_id) throw { status: 400, message: 'Each answer requires question_id' };
+
+            const options = ans?.options;
+            if (!Array.isArray(options) || options.length === 0) {
+                throw { status: 400, message: `Answer for question_id=${question_id} must include options[]` };
+            }
+
+            for (const opt of options) {
+                const option_id = (opt && typeof opt === 'object')
+                    ? (opt.option_id ?? opt.optionId ?? opt.id)
+                    : opt;
+                if (!option_id) {
+                    throw { status: 400, message: `Missing option_id for question_id=${question_id}` };
+                }
+
+                let answer_image_id = null;
+                const existingImageId = (opt && typeof opt === 'object')
+                    ? (opt.answer_image_id ?? opt.answerImageId ?? null)
+                    : null;
+                if (existingImageId != null) {
+                    answer_image_id = existingImageId;
+                }
+
+                const field = (opt && typeof opt === 'object')
+                    ? (opt.file_field ?? opt.fileField)
+                    : null;
+
+                // Default convention: answer_image_<questionId>_<optionId>
+                const fieldCandidates = [
+                    field,
+                    `answer_image_${question_id}_${option_id}`,
+                    `answer_image_${option_id}`,
+                ].filter(Boolean);
+
+                const file = fieldCandidates
+                    .map(k => filesByField.get(String(k)))
+                    .find(Boolean);
+                if (file) {
+                    const uploaded = await insertImageFromUpload(client, { file, alt_text: `Listing ${listing_id} proof`, uploaded_by: user?.userId || null });
+                    answer_image_id = uploaded.id;
+                }
+
+                await client.query(
+                    `INSERT INTO sell_listing_answers(listing_id, question_id, option_id, answer_image_id)
+                     VALUES ($1,$2,$3,$4)
+                     ON CONFLICT(listing_id, question_id, option_id)
+                     DO UPDATE SET answer_image_id=EXCLUDED.answer_image_id`,
+                    [listing_id, question_id, option_id, answer_image_id],
+                );
+            }
+        }
+
+        // Recalculate quoted price from inspection context answers
+        const base_price = parseFloat(listingRes.rows[0].base_price || 0);
+        const dedRes = await client.query(
+            `
+            SELECT COALESCE(SUM(sqo.price_deduction), 0) total_deduction
+            FROM sell_listing_answers sla
+            JOIN sell_questions sq ON sq.id=sla.question_id
+            JOIN sell_question_options sqo ON sqo.id=sla.option_id
+            WHERE sla.listing_id=$1
+              AND (sq.context=$2 OR sq.context=$3)
+            `,
+            [listing_id, contextId, bothId],
+        );
+        const totalDeduction = parseFloat(dedRes.rows[0]?.total_deduction || 0);
+        let quoted_price = base_price - (base_price * totalDeduction) / 100;
+        if (quoted_price < 0) quoted_price = 0;
+
+        await client.query(
+            `UPDATE sell_listings
+             SET quoted_price=$2, updated_at=NOW()
+             WHERE id=$1`,
+            [listing_id, quoted_price],
+        );
+
+        await client.query('COMMIT');
+        return {
+            listing_id,
+            merchant_id,
+            context,
+            base_price,
+            quoted_price,
+        };
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw { status: error.status || 500, message: error.message || 'Internal Server Error' };
+    } finally {
+        client.release();
+    }
+};
+
+exports.postRequote = async ({ listing_id, answers, context } = {}) => {
+    // Backwards-compat shim: allow old callers to submit via query-string JSON.
+    let parsedAnswers = answers;
+    if (typeof parsedAnswers === 'string') {
+        try {
+            parsedAnswers = JSON.parse(parsedAnswers);
+        } catch {
+            throw { status: 400, message: 'Invalid JSON in answers' };
+        }
+    }
+    return {
+        message: 'Use POST /api/merchant/requote/questions for submitting answers',
+        listing_id: listing_id ?? null,
+        context: context ?? null,
+        answers: Array.isArray(parsedAnswers) ? parsedAnswers.length : null,
+    };
 }
 
 exports.sendEmailOTP = async ({ link, email }) => {
