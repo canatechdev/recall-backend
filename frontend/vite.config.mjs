@@ -13,7 +13,10 @@ export default defineConfig(({ mode }) => {
     build: {
       // Backend serves the admin SPA from /public/admin (mounted at /admin).
       // Keep the build output aligned with Express static hosting.
-      outDir: '../public/admin/'
+      outDir: '../public/admin/',
+      // outDir is outside the Vite project root; without this,
+      // old hashed assets accumulate and inflate build size.
+      emptyOutDir: true,
     },
     css: {
       postcss: {

@@ -12,6 +12,7 @@ import {
   CInputGroup,
   CInputGroupText,
   CRow,
+  CSpinner,
 } from '@coreui/react'
 import CIcon from '@coreui/icons-react'
 import { cilLockLocked, cilLowVision, cilUser } from '@coreui/icons'
@@ -28,7 +29,7 @@ const eyeIcon = [
 const Login = () => {
   const navigate = useNavigate()
   const location = useLocation()
-  const { login } = useAuth()
+  const { login, loading: authLoading, isAuthenticated } = useAuth()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -53,6 +54,14 @@ const Login = () => {
   }, [])
 
   const from = location.state?.from?.pathname || '/dashboard'
+
+  useEffect(() => {
+    // If refresh token was valid, AuthProvider will silently authenticate.
+    // In that case, don't keep the user on /login.
+    if (!authLoading && isAuthenticated) {
+      navigate(from, { replace: true })
+    }
+  }, [authLoading, isAuthenticated, from, navigate])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -85,6 +94,13 @@ const Login = () => {
           <CCol sm={10} md={7} lg={5} xl={4}>
             <CCard className="border-0 shadow-sm">
               <CCardBody className="p-4">
+                {authLoading ? (
+                  <div className="text-center py-4">
+                    <CSpinner color="primary" />
+                    <div className="text-body-secondary small mt-2">Checking session…</div>
+                  </div>
+                ) : null}
+
                 <div className="text-center mb-4">
                   {/* <CIcon icon={logo} height={36} className="text-primary" /> */}
                   <img
@@ -112,7 +128,7 @@ const Login = () => {
                       autoComplete="username"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      disabled={loading}
+                      disabled={loading || authLoading}
                     />
                   </CInputGroup>
                   <CInputGroup className="mb-4">
@@ -125,7 +141,7 @@ const Login = () => {
                       autoComplete="current-password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      disabled={loading}
+                      disabled={loading || authLoading}
                     />
                     <CInputGroupText
                       role="button"
@@ -143,13 +159,13 @@ const Login = () => {
                       label="Remember me"
                       checked={rememberMe}
                       onChange={(e) => setRememberMe(e.target.checked)}
-                      disabled={loading}
+                      disabled={loading || authLoading}
                     />
                   </div>
 
                   <CRow>
                     <CCol xs={12} className="text-center">
-                      <CButton color="primary" className="px-4" type="submit" disabled={loading}>
+                      <CButton color="primary" className="px-4" type="submit" disabled={loading || authLoading}>
                         {loading ? 'Logging in…' : 'Login'}
                       </CButton>
                     </CCol>
