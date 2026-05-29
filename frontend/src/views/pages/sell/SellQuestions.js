@@ -102,7 +102,7 @@ export default function SellQuestions() {
 
     // Inline edit state
     const [editingId, setEditingId] = useState(null);
-    const [editData, setEditData] = useState({ text: "", description: "", input_type: "single_select", context: 'sell', sort_index: 1 });
+    const [editData, setEditData] = useState({ text: "", description: "", input_type: "single_select", context: 'sell', sort_index: 1, category_slugs: [] });
 
     // Add question form
     const [newQ, setNewQ] = useState({ text: "", description: "", input_type: "yes_no", context: 'sell', category_slugs: [] });
@@ -321,11 +321,28 @@ export default function SellQuestions() {
             input_type: q.input_type ?? "single_select",
             context: String(q.context_label || q.context || activeContext).toLowerCase(),
             sort_index: q.sort_index ?? 1,
+            category_slugs: Array.isArray(q.categories)
+                ? q.categories.map(c => c?.slug).filter(Boolean)
+                : [],
         });
+    };
+
+    const toggleEditCategory = (catSlug) => {
+        const slug = String(catSlug || '').trim();
+        if (!slug) return;
+        setEditData(prev => ({
+            ...prev,
+            category_slugs: (prev.category_slugs ?? []).includes(slug)
+                ? prev.category_slugs.filter(s => s !== slug)
+                : [...(prev.category_slugs ?? []), slug],
+        }));
     };
 
     const handleUpdateQuestion = async () => {
         if (!editData.text?.trim()) return showToast('danger', 'Question text is required');
+        if (!Array.isArray(editData.category_slugs) || editData.category_slugs.length === 0) {
+            return showToast('danger', 'Select at least one category');
+        }
         try {
             setSaving(true);
             await update_sell_question(editingId, buildQuestionPayload(editData, editData.sort_index));
@@ -891,18 +908,40 @@ export default function SellQuestions() {
                     {
                         key: 'categories',
                         label: 'Categories',
-                        render: (q) => (
-                            <div className="d-flex flex-wrap gap-1">
-                                {(q.categories ?? []).length > 0
-                                    ? (q.categories).map(c => (
-                                        <span key={c.id ?? c.slug} className="badge bg-light text-dark border">
+                        render: (q) => {
+                            const qId = String(q.id)
+                            const isEditing = editingId === qId
+                            if (!isEditing) {
+                                return (
+                                    <div className="d-flex flex-wrap gap-1">
+                                        {(q.categories ?? []).length > 0
+                                            ? (q.categories).map(c => (
+                                                <span key={c.id ?? c.slug} className="badge bg-light text-dark border">
+                                                    {c.name}
+                                                </span>
+                                            ))
+                                            : <span className="text-muted small">None</span>
+                                        }
+                                    </div>
+                                )
+                            }
+
+                            return (
+                                <div className="d-flex flex-wrap gap-1">
+                                    {categories.map(c => (
+                                        <button
+                                            key={c.slug}
+                                            type="button"
+                                            className={`btn btn-sm ${(editData.category_slugs ?? []).includes(c.slug) ? "btn-primary" : "btn-outline-secondary"}`}
+                                            onClick={() => toggleEditCategory(c.slug)}
+                                            title="Toggle category"
+                                        >
                                             {c.name}
-                                        </span>
-                                    ))
-                                    : <span className="text-muted small">None</span>
-                                }
-                            </div>
-                        ),
+                                        </button>
+                                    ))}
+                                </div>
+                            )
+                        },
                     },
                     {
                         key: 'actions',

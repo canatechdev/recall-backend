@@ -255,14 +255,26 @@ BEGIN;
 		updated_at TIMESTAMP DEFAULT NOW()
 	);
 
+	-- Merchant-side inspection session (supports re-inspection / renegotiation)
+	CREATE TABLE inspections (
+		id BIGSERIAL PRIMARY KEY,
+		listing_id BIGINT NOT NULL REFERENCES sell_listings(id) ON DELETE CASCADE,
+		agent_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+		otp_verified_at TIMESTAMP,
+		status INT NOT NULL DEFAULT 1, -- inspection_status | started completed cancelled
+		created_at TIMESTAMP DEFAULT NOW(),
+		updated_at TIMESTAMP DEFAULT NOW()
+	);
+
 	CREATE TABLE sell_listing_answers(
 		id BIGSERIAL PRIMARY KEY,
 		listing_id BIGINT NOT NULL REFERENCES sell_listings(id) ON DELETE CASCADE,
+		inspection_id BIGINT REFERENCES inspections(id) ON DELETE CASCADE,
 		question_id BIGINT NOT NULL REFERENCES sell_questions(id) ON DELETE CASCADE,
 		option_id BIGINT NOT NULL REFERENCES sell_question_options(id) ON DELETE CASCADE,
 		answer_image_id BIGINT REFERENCES images(id) ON DELETE SET NULL, -- optional proof/inspection image
 		created_at TIMESTAMP DEFAULT NOW(),
-		UNIQUE(listing_id, question_id, option_id)
+		UNIQUE(inspection_id, question_id, option_id)
 	);
 	
 	CREATE TABLE sell_pickups (
@@ -315,6 +327,30 @@ BEGIN;
 		attempts	INT NOT NULL DEFAULT 0,
 		expires_at  TIMESTAMP NOT NULL DEFAULT NOW() + INTERVAL '10 minutes',
 		created_at  TIMESTAMP DEFAULT NOW()
+	);
+
+	-- Lead cancellation details (agent/merchant cancels after inspection)
+	CREATE TABLE listing_cancellations (
+		id BIGSERIAL PRIMARY KEY,
+		listing_id BIGINT NOT NULL REFERENCES sell_listings(id) ON DELETE CASCADE,
+		inspection_id BIGINT REFERENCES inspections(id) ON DELETE SET NULL,
+		cancelled_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+		reason TEXT,
+		final_offered_price NUMERIC(10,2),
+		customer_expected_price NUMERIC(10,2),
+		created_at TIMESTAMP DEFAULT NOW()
+	);
+
+	-- Renegotiation offers (agent proposes new amount; customer accepts/rejects)
+	CREATE TABLE listing_offers (
+		id BIGSERIAL PRIMARY KEY,
+		listing_id BIGINT NOT NULL REFERENCES sell_listings(id) ON DELETE CASCADE,
+		inspection_id BIGINT REFERENCES inspections(id) ON DELETE SET NULL,
+		offered_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+		amount NUMERIC(10,2) NOT NULL,
+		status INT NOT NULL DEFAULT 1, -- offer_status | pending accepted rejected
+		created_at TIMESTAMP DEFAULT NOW(),
+		updated_at TIMESTAMP DEFAULT NOW()
 	);
 
 	CREATE OR REPLACE FUNCTION enum_master_id()

@@ -1,6 +1,16 @@
 const pool = require('../config/database');
 
 const QUESTION_CONTEXT_MASTER = 'question_context';
+const LISTING_STATUS_MASTER = 'listing_status';
+
+const resolveEnumId = async (db, masterName, optionName) => {
+    const res = await db.query(
+        `SELECT id FROM enum_master WHERE master_name=$1 AND option_name=$2`,
+        [masterName, optionName],
+    );
+    if (res.rowCount === 0) throw { status: 500, message: `Missing enum_master(${masterName}:${optionName})` };
+    return res.rows[0].id;
+};
 
 const parseOptionalInt = (v) => {
     if (v === undefined || v === null || v === '') return null;
@@ -101,6 +111,7 @@ exports.deleteModelConfig = async (id) => {
 
 exports.getQuestions = async (query = {}) => {
     const contextId = await resolveQuestionContextId(query);
+    console.log('devaa', contextId);
 
     // Ensure yes/no questions always have backing options in DB (idempotent backfill)
     await pool.query(
@@ -335,48 +346,79 @@ exports.createQuestion = async (data) => {
 };
 
 exports.updateQuestion = async (id, data) => {
-    const { text, description, input_type, sort_index, is_active } = data;
+    const { text, description, input_type, sort_index, is_active, category_slugs } = data;
     const contextId = await resolveQuestionContextId(data);
 
-    const result = await pool.query(
-        `UPDATE sell_questions
-         SET text=COALESCE($1, text),
-             description=COALESCE($2, description),
-             input_type=COALESCE($3, input_type),
-             context=COALESCE($4, context),
-             sort_index=COALESCE($5, sort_index),
-             is_active=COALESCE($6, is_active)
-         WHERE id=$7
-         RETURNING id, text, description, input_type, context, sort_index, is_active`,
-        [
-            text || null,
-            description !== undefined ? description : null,
-            input_type || null,
-            contextId,
-            sort_index || null,
-            is_active != null ? is_active : null,
-            id,
-        ]
-    );
-    if (result.rowCount === 0) throw { status: 404, message: "Question not found" };
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
 
-    // If it is (or became) yes_no, ensure backing options exist.
-    if ((result.rows[0].input_type || '').toLowerCase() === 'yes_no') {
-        await pool.query(
-            `WITH missing AS (
-                SELECT $1::BIGINT AS question_id
-                WHERE NOT EXISTS (
-                    SELECT 1 FROM sell_question_options o WHERE o.question_id = $1
-                )
-            )
-            INSERT INTO sell_question_options (question_id, text, price_deduction, sort_index)
-            SELECT question_id, 'Yes', 0, 1 FROM missing
-            UNION ALL
-            SELECT question_id, 'No', 0, 2 FROM missing`,
-            [id]
+        const result = await client.query(
+            `UPDATE sell_questions
+             SET text=COALESCE($1, text),
+                 description=COALESCE($2, description),
+                 input_type=COALESCE($3, input_type),
+                 context=COALESCE($4, context),
+                 sort_index=COALESCE($5, sort_index),
+                 is_active=COALESCE($6, is_active)
+             WHERE id=$7
+             RETURNING id, text, description, input_type, context, sort_index, is_active`,
+            [
+                text || null,
+                description !== undefined ? description : null,
+                input_type || null,
+                contextId,
+                sort_index || null,
+                is_active != null ? is_active : null,
+                id,
+            ]
         );
+        if (result.rowCount === 0) throw { status: 404, message: "Question not found" };
+
+        // Update category mappings if provided.
+        if (Array.isArray(category_slugs)) {
+            const normalized = category_slugs
+                .map(s => String(s || '').trim())
+                .filter(Boolean);
+
+            await client.query(`DELETE FROM sell_category_questions WHERE question_id=$1`, [id]);
+
+            for (let i = 0; i < normalized.length; i++) {
+                const cat = await client.query(`SELECT id FROM categories WHERE slug=$1`, [normalized[i]]);
+                if (cat.rowCount === 0) throw { status: 404, message: `Category not found: ${normalized[i]}` };
+                await client.query(
+                    `INSERT INTO sell_category_questions(category_id, question_id, sort_index)
+                     VALUES ($1, $2, $3)` ,
+                    [cat.rows[0].id, id, i + 1]
+                );
+            }
+        }
+
+        // If it is (or became) yes_no, ensure backing options exist.
+        if ((result.rows[0].input_type || '').toLowerCase() === 'yes_no') {
+            await client.query(
+                `WITH missing AS (
+                    SELECT $1::BIGINT AS question_id
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM sell_question_options o WHERE o.question_id = $1
+                    )
+                )
+                INSERT INTO sell_question_options (question_id, text, price_deduction, sort_index)
+                SELECT question_id, 'Yes', 0, 1 FROM missing
+                UNION ALL
+                SELECT question_id, 'No', 0, 2 FROM missing`,
+                [id]
+            );
+        }
+
+        await client.query('COMMIT');
+        return result.rows[0];
+    } catch (e) {
+        await client.query('ROLLBACK');
+        throw { status: e.status || 500, message: e.message || 'Failed to update question' };
+    } finally {
+        client.release();
     }
-    return result.rows[0];
 };
 
 exports.deleteQuestion = async (id) => {
@@ -774,6 +816,8 @@ exports.createSellListing = async (data) => {
     try {
         await client.query('BEGIN');
 
+        const pendingStatusId = await resolveEnumId(client, LISTING_STATUS_MASTER, 'pending');
+
         // Resolve IDs
         const modelRes = await client.query(
             `SELECT m.id model_id, m.brand_id, m.category_id
@@ -816,9 +860,9 @@ exports.createSellListing = async (data) => {
         // Insert listing
         const listingRes = await client.query(
             `INSERT INTO sell_listings(user_id, category_id, brand_id, model_id, config_id, base_price, quoted_price, expected_price, status)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
              RETURNING id`,
-            [user_id || null, category_id, brand_id, model_id, config_id, base_price, quoted_price, expected_price]
+            [user_id || null, category_id, brand_id, model_id, config_id, base_price, quoted_price, expected_price, pendingStatusId]
         );
         const listing_id = listingRes.rows[0].id;
 
@@ -953,6 +997,7 @@ exports.getListingDetails = async (listing_id) => {
         LEFT JOIN images oi ON sqo.option_image_id=oi.id
         LEFT JOIN images ai ON sla.answer_image_id=ai.id
         WHERE sla.listing_id=$1
+          AND sla.inspection_id IS NULL
         ORDER BY sq.sort_index, sq.id, sqo.sort_index, sqo.id
         `,
         [listing_id],
@@ -1093,6 +1138,41 @@ exports.getListingDetails = async (listing_id) => {
     };
 };
 
+// ── Listing Offers (customer view) ─────────────────────────
+
+exports.getListingOffers = async ({ listing_id, user } = {}) => {
+    if (!listing_id) throw { status: 400, message: 'listing_id is required' };
+    if (!user?.userId) throw { status: 401, message: 'Invalid session' };
+
+    const own = await pool.query(
+        `SELECT user_id FROM sell_listings WHERE id=$1`,
+        [listing_id],
+    );
+    if (own.rowCount === 0) throw { status: 404, message: 'Listing not found' };
+    if (String(own.rows[0].user_id || '') !== String(user.userId)) {
+        throw { status: 403, message: 'Access denied' };
+    }
+
+    const res = await pool.query(
+        `
+        SELECT lo.id,
+               lo.listing_id,
+               lo.inspection_id,
+               lo.amount,
+               lo.status,
+               em.option_name status_label,
+               lo.created_at,
+               lo.updated_at
+        FROM listing_offers lo
+        LEFT JOIN enum_master em ON lo.status=em.id AND em.master_name='offer_status'
+        WHERE lo.listing_id=$1
+        ORDER BY lo.created_at DESC, lo.id DESC
+        `,
+        [listing_id],
+    );
+    return res.rows;
+};
+
 // ── Assign Listing to Merchant ───────────────────────────────
 
 exports.assignListing = async (listing_id, merchant_id) => {
@@ -1109,9 +1189,14 @@ exports.assignListing = async (listing_id, merchant_id) => {
         throw { status: 400, message: "User is not a merchant" };
 
     const result = await pool.query(
-        `UPDATE sell_listings
-         SET assigned_merchant_id=$1, status=2, updated_at=NOW()
-         WHERE id=$2 AND status=1
+        `WITH pending AS (
+            SELECT id FROM enum_master WHERE master_name='listing_status' AND option_name='pending'
+         ), assigned AS (
+            SELECT id FROM enum_master WHERE master_name='listing_status' AND option_name='assigned'
+         )
+         UPDATE sell_listings
+         SET assigned_merchant_id=$1, status=(SELECT id FROM assigned), updated_at=NOW()
+         WHERE id=$2 AND status=(SELECT id FROM pending)
          RETURNING id`,
         [merchant_id, listing_id]
     );
@@ -1126,8 +1211,13 @@ exports.assignListing = async (listing_id, merchant_id) => {
 exports.transferListing = async (listing_id) => {
     if (!listing_id) throw { status: 400, message: "listing_id is required" };
     const result = await pool.query(
-        `UPDATE sell_listings SET status=4, updated_at=NOW()
-         WHERE id=$1 AND status=2
+        `WITH assigned AS (
+            SELECT id FROM enum_master WHERE master_name='listing_status' AND option_name='assigned'
+         ), transferred AS (
+            SELECT id FROM enum_master WHERE master_name='listing_status' AND option_name='transferred'
+         )
+         UPDATE sell_listings SET status=(SELECT id FROM transferred), updated_at=NOW()
+         WHERE id=$1 AND status=(SELECT id FROM assigned)
          RETURNING id`,
         [listing_id]
     );
@@ -1140,8 +1230,15 @@ exports.transferListing = async (listing_id) => {
 exports.rejectListing = async (listing_id) => {
     if (!listing_id) throw { status: 400, message: "listing_id is required" };
     const result = await pool.query(
-        `UPDATE sell_listings SET status=3, updated_at=NOW()
-         WHERE id=$1 AND (status=1 OR status=2)
+        `WITH pending AS (
+            SELECT id FROM enum_master WHERE master_name='listing_status' AND option_name='pending'
+         ), assigned AS (
+            SELECT id FROM enum_master WHERE master_name='listing_status' AND option_name='assigned'
+         ), rejected AS (
+            SELECT id FROM enum_master WHERE master_name='listing_status' AND option_name='rejected'
+         )
+         UPDATE sell_listings SET status=(SELECT id FROM rejected), updated_at=NOW()
+         WHERE id=$1 AND (status=(SELECT id FROM pending) OR status=(SELECT id FROM assigned))
          RETURNING id`,
         [listing_id]
     );

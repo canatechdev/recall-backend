@@ -48,6 +48,7 @@ router.post('/calculate-price', reqBody, sellController.calculatePrice);
 // Sell Listings (Leads)
 router.get('/listings', sellController.getListings);
 router.get('/listings/:id', sellController.getListingDetails);
+router.get('/listings/:id/offers', authMiddleware, sellController.getListingOffers);
 router.post('/listings', authMiddleware, reqBody, sellController.createListing);
 router.put('/listings/:id/assign', sellController.assignListing);
 router.put('/listings/:id/transfer', sellController.transferListing);

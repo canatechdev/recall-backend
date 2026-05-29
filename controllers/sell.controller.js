@@ -180,6 +180,13 @@ exports.getListingDetails = async (req, res) => {
     res.status(200).json(data);
 };
 
+exports.getListingOffers = async (req, res) => {
+    const { id } = req.params;
+    if (!id) throw { status: 400, message: 'Listing id is required' };
+    const data = await sellService.getListingOffers({ listing_id: id, user: req.user });
+    res.status(200).json(data);
+};
+
 exports.assignListing = async (req, res) => {
     const { id } = req.params;
     const { merchant_id } = req.body;

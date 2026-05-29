@@ -50,6 +50,24 @@ BEGIN;
 		(1,'invite_status','pending'),
 		(2,'invite_status','accepted'),
 		(3,'invite_status','expired');
+
+	-- Additional merchant lifecycle statuses (id auto-assigned per master_name)
+	INSERT INTO enum_master(master_name, option_name)
+	VALUES
+		('listing_status','assigned'),
+		('listing_status','out_for_delivery'),
+		('listing_status','inspection_started'),
+		('listing_status','inspection_complete'),
+		('listing_status','renegotiating'),
+		('listing_status','completed'),
+		('listing_status','cancelled'),
+		('inspection_status','started'),
+		('inspection_status','completed'),
+		('inspection_status','cancelled'),
+		('offer_status','pending'),
+		('offer_status','accepted'),
+		('offer_status','rejected')
+	ON CONFLICT(master_name, option_name) DO NOTHING;
 		
 	INSERT INTO roles(
 		id,name, description, is_system)
