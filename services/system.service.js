@@ -303,6 +303,7 @@ exports.getBrands = async ({ cat_slug, all }) => {
         left join model_series ms on b.id=ms.brand_id and ms.status=1
         ${whquery}
         group by b.id, img.url
+        ORDER BY b.id
         `);
     // data.rows.map(b => b.route = `/product/brand/${b.slug}/products`)
     return data.rows;

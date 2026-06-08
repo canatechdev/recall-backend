@@ -985,9 +985,56 @@ function ModelTable({ models, loading, emptyMsg, refreshModels, showToast }) {
     const [configs, setConfigs] = useState([]);
     const [loadingConfigs, setLoadingConfigs] = useState(false);
     const [showAddConfig, setShowAddConfig] = useState(false);
+    const [addConfigsList, setAddConfigsList] = useState([]);
     const [savingConfig, setSavingConfig] = useState(false);
     const [savingModel, setSavingModel] = useState(false);
     const [editingConfig, setEditingConfig] = useState(null);
+
+    const addConfigRow = () => setAddConfigsList(prev => [...prev, { name: '', base_price: '' }]);
+    const removeConfigRow = (index) => setAddConfigsList(prev => prev.filter((_, i) => i !== index));
+    const updateConfigRow = (index, field, value) => setAddConfigsList(prev => prev.map((r, i) => i === index ? { ...r, [field]: value } : r));
+
+    const saveMultipleConfigs = async () => {
+        if (!configModelSlug) {
+            showToast?.('danger', 'Model slug missing. Refresh and try again.');
+            return;
+        }
+
+        // basic validation first
+        for (let i = 0; i < addConfigsList.length; i++) {
+            const r = addConfigsList[i];
+            const name = String(r.name || '').trim();
+            const rawPrice = String(r.base_price ?? '').trim();
+            const basePrice = parseFloat(rawPrice.replace(/,/g, ''));
+            if (!name) {
+                showToast?.('danger', `Config #${i + 1}: name is required`);
+                return;
+            }
+            if (!Number.isFinite(basePrice)) {
+                showToast?.('danger', `Config #${i + 1}: base price is required`);
+                return;
+            }
+        }
+
+        try {
+            setSavingConfig(true);
+            const payloads = addConfigsList.map(r => ({
+                model_slug: configModelSlug,
+                name: String(r.name || '').trim(),
+                base_price: parseFloat(String(r.base_price || '').replace(/,/g, '')),
+            }));
+
+            await Promise.all(payloads.map(p => create_model_config(p)));
+            showToast?.('success', 'Configs saved');
+            setShowAddConfig(false);
+            setAddConfigsList([]);
+            fetchConfigs(configModelSlug);
+        } catch (e) {
+            showToast?.('danger', e?.response?.data?.message || e.message || 'Failed to save configs');
+        } finally {
+            setSavingConfig(false);
+        }
+    };
 
     const fetchConfigs = async (modelSlug) => {
         try {
@@ -1245,7 +1292,7 @@ function ModelTable({ models, loading, emptyMsg, refreshModels, showToast }) {
                                             <h6 className="fw-bold mb-0">Sell Configs — {m.name}</h6>
                                             <button
                                                 className="btn btn-sm btn-outline-primary"
-                                                onClick={() => { setShowAddConfig(!showAddConfig); setEditingConfig(null); }}
+                                                onClick={() => { if (!showAddConfig) setAddConfigsList([{ name: '', base_price: '' }]); setShowAddConfig(!showAddConfig); setEditingConfig(null); }}
                                             >
                                                 <CIcon icon={showAddConfig ? cilX : cilPlus} className="me-1" />
                                                 {showAddConfig ? 'Cancel' : 'Add Config'}
@@ -1253,15 +1300,52 @@ function ModelTable({ models, loading, emptyMsg, refreshModels, showToast }) {
                                         </div>
 
                                         {showAddConfig && (
-                                            <InlineForm
-                                                fields={[
-                                                    { key: "name", label: "Config Name", placeholder: "e.g. 6GB / 128GB", col: "col-md-5" },
-                                                    { key: "base_price", label: "Base Price (₹)", placeholder: "e.g. 15000", col: "col-md-5" },
-                                                ]}
-                                                onSave={saveConfig}
-                                                onCancel={() => setShowAddConfig(false)}
-                                                loading={savingConfig}
-                                            />
+                                            <div className="mb-3">
+                                                {addConfigsList.map((row, idx) => (
+                                                    <div key={idx} className="row g-2 align-items-center mb-2">
+                                                        <div className="col-md-5">
+                                                            <input
+                                                                type="text"
+                                                                className="form-control"
+                                                                placeholder="e.g. 6GB / 128GB"
+                                                                value={row.name}
+                                                                onChange={(e) => updateConfigRow(idx, 'name', e.target.value)}
+                                                            />
+                                                        </div>
+                                                        <div className="col-md-5">
+                                                            <input
+                                                                type="text"
+                                                                className="form-control"
+                                                                placeholder="e.g. 15000"
+                                                                value={row.base_price}
+                                                                onChange={(e) => updateConfigRow(idx, 'base_price', e.target.value)}
+                                                            />
+                                                        </div>
+                                                        <div className="col-auto">
+                                                            <button
+                                                                type="button"
+                                                                className="btn btn-outline-danger"
+                                                                onClick={() => removeConfigRow(idx)}
+                                                                disabled={savingConfig}
+                                                            >
+                                                                <CIcon icon={cilTrash} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+
+                                                <div className="d-flex gap-2">
+                                                    <button type="button" className="btn btn-sm btn-outline-primary" onClick={addConfigRow} disabled={savingConfig}>
+                                                        <CIcon icon={cilPlus} className="me-1" /> Add another
+                                                    </button>
+                                                    <button type="button" className="btn btn-sm btn-primary" onClick={saveMultipleConfigs} disabled={savingConfig || addConfigsList.length === 0}>
+                                                        Save All
+                                                    </button>
+                                                    <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => { setShowAddConfig(false); setAddConfigsList([]); }} disabled={savingConfig}>
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                            </div>
                                         )}
 
                                         {loadingConfigs ? <LoadingSpinner /> : configs.length === 0 ? (
