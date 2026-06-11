@@ -22,7 +22,9 @@ build/
 
 uploads/*
 !uploads/.gitkeep
-
+frontend/*
+frontend
+public/
 
 *.zip
 Cashify/

@@ -52,7 +52,7 @@ router.get('/listings/:id/offers', authMiddleware, sellController.getListingOffe
 router.post('/listings', authMiddleware, reqBody, sellController.createListing);
 router.put('/listings/:id/assign', sellController.assignListing);
 router.put('/listings/:id/transfer', sellController.transferListing);
-router.put('/listings/:id/reject', sellController.rejectListing);
+router.put('/listings/:id/cancel', sellController.cancelListing);
 
 // Sell Listings (Leads)
 router.post('/pickup', authMiddleware, reqBody, sellController.schedulePickup);

@@ -200,9 +200,9 @@ exports.transferListing = async (req, res) => {
     res.status(200).json(data);
 };
 
-exports.rejectListing = async (req, res) => {
+exports.cancelListing = async (req, res) => {
     const { id } = req.params;
-    const data = await sellService.rejectListing(id);
+    const data = await sellService.cancelListing(id);
     res.status(200).json(data);
 };
 

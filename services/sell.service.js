@@ -24,6 +24,13 @@ const normalizeContextSlug = (v) => {
     return s ? s : null;
 };
 
+const normalizeListingStatusSlug = (v) => {
+    if (v === undefined || v === null) return null;
+    const s = String(v).trim().toLowerCase();
+    if (!s) return null;
+    return s === 'transferred' ? 'completed' : s;
+};
+
 const resolveQuestionContextId = async ({ context, context_id, context_slug } = {}) => {
     const explicitId = parseOptionalInt(context_id ?? (typeof context === 'number' ? context : null));
     if (explicitId != null) {
@@ -817,7 +824,7 @@ exports.createSellListing = async (data) => {
         await client.query('BEGIN');
 
         const pendingStatusId = await resolveEnumId(client, LISTING_STATUS_MASTER, 'pending');
-
+        console.log('radha', pendingStatusId)
         // Resolve IDs
         const modelRes = await client.query(
             `SELECT m.id model_id, m.brand_id, m.category_id
@@ -896,15 +903,18 @@ exports.createSellListing = async (data) => {
 // ── Get Sell Listings (Leads) ────────────────────────────────
 
 exports.getListings = async ({ status }) => {
+    const client = await pool.connect();
     const values = [];
     let whereClause = "WHERE 1=1";
 
-    if (status) {
-        values.push(parseInt(status));
-        whereClause += ` AND sl.status=$${values.length}`;
-    }
-
-    const result = await pool.query(`
+    try {
+        if (status) {
+            const normalizedStatus = normalizeListingStatusSlug(status);
+            const actualStatus = await resolveEnumId(client, LISTING_STATUS_MASTER, normalizedStatus);
+            values.push(actualStatus);
+            whereClause += ` AND sl.status=$${values.length}`;
+        }
+        const result = await client.query(`
         SELECT sl.id, sl.base_price, sl.quoted_price, sl.expected_price,
                sl.created_at, sl.updated_at,
                em.option_name status_label,
@@ -915,21 +925,25 @@ exports.getListings = async ({ status }) => {
                mu.email merchant_email,
                mup.first_name merchant_first_name, mup.last_name merchant_last_name
         FROM sell_listings sl
+        JOIN enum_master em ON sl.status=em.id AND em.master_name='listing_status'
         LEFT JOIN users u ON sl.user_id=u.id
         LEFT JOIN user_profile up ON u.id=up.user_id
         LEFT JOIN categories c ON sl.category_id=c.id
         LEFT JOIN brands b ON sl.brand_id=b.id
         LEFT JOIN models m ON sl.model_id=m.id
         LEFT JOIN sell_model_configs smc ON sl.config_id=smc.id
-        LEFT JOIN enum_master em ON sl.status=em.id AND em.master_name='listing_status'
         LEFT JOIN users mu ON sl.assigned_merchant_id=mu.id
         LEFT JOIN user_profile mup ON mu.id=mup.user_id
         ${whereClause}
         ORDER BY sl.created_at DESC
-        
     `, values);
+        return result.rows;
+    } catch (error) {
+        throw { status: error.status, message: error.message }
+    } finally {
+        client.release();
+    }
 
-    return result.rows;
 };
 
 // ── Get Sell Listing Details (Lead Details) ─────────────────
@@ -1206,17 +1220,17 @@ exports.assignListing = async (listing_id, merchant_id) => {
     return result.rows[0];
 };
 
-// ── Transfer Listing (mark as transferred) ───────────────────
+// ── Transfer Listing (mark as completed) ─────────────────────
 
 exports.transferListing = async (listing_id) => {
     if (!listing_id) throw { status: 400, message: "listing_id is required" };
     const result = await pool.query(
         `WITH assigned AS (
             SELECT id FROM enum_master WHERE master_name='listing_status' AND option_name='assigned'
-         ), transferred AS (
-            SELECT id FROM enum_master WHERE master_name='listing_status' AND option_name='transferred'
+            ), completed AS (
+                SELECT id FROM enum_master WHERE master_name='listing_status' AND option_name='completed'
          )
-         UPDATE sell_listings SET status=(SELECT id FROM transferred), updated_at=NOW()
+            UPDATE sell_listings SET status=(SELECT id FROM completed), updated_at=NOW()
          WHERE id=$1 AND status=(SELECT id FROM assigned)
          RETURNING id`,
         [listing_id]
@@ -1225,24 +1239,24 @@ exports.transferListing = async (listing_id) => {
     return result.rows[0];
 };
 
-// ── Reject Listing ───────────────────────────────────────────
+// ── Cancel Listing ───────────────────────────────────────────
 
-exports.rejectListing = async (listing_id) => {
+exports.cancelListing = async (listing_id) => {
     if (!listing_id) throw { status: 400, message: "listing_id is required" };
     const result = await pool.query(
         `WITH pending AS (
             SELECT id FROM enum_master WHERE master_name='listing_status' AND option_name='pending'
          ), assigned AS (
             SELECT id FROM enum_master WHERE master_name='listing_status' AND option_name='assigned'
-         ), rejected AS (
-            SELECT id FROM enum_master WHERE master_name='listing_status' AND option_name='rejected'
+         ), cancelled AS (
+            SELECT id FROM enum_master WHERE master_name='listing_status' AND option_name='cancelled'
          )
-         UPDATE sell_listings SET status=(SELECT id FROM rejected), updated_at=NOW()
+         UPDATE sell_listings SET status=(SELECT id FROM cancelled), updated_at=NOW()
          WHERE id=$1 AND (status=(SELECT id FROM pending) OR status=(SELECT id FROM assigned))
          RETURNING id`,
         [listing_id]
     );
-    if (result.rowCount === 0) throw { status: 404, message: "Listing not found or already rejected" };
+    if (result.rowCount === 0) throw { status: 404, message: "Listing not found or not in a cancellable status" };
     return result.rows[0];
 };
 
@@ -1257,7 +1271,7 @@ exports.schedulePickup = async ({ user_id, listing_id, address_id, pickup_date, 
     const result = await pool.query(`INSERT INTO sell_pickups(listing_id, address_id, pickup_date, pickup_slot_start, pickup_slot_end, notes) VALUES($1, $2, $3, $4, $5, $6)
     RETURNING *`, [listing_id, address_id, pickup_date, pickup_slot_start, pickup_slot_end, notes])
     return result.rows || [];
-}
+};
 
 // ── Get Merchants ────────────────────────────────────────────
 
