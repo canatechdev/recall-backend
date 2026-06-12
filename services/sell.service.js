@@ -171,6 +171,7 @@ exports.getQuestions = async (query = {}) => {
                                         ),'[]'::JSONB
                                     )
                                 )
+                                ORDER BY qo.id DESC
                             )
                             FROM sell_question_options qo
                             LEFT JOIN images img ON qo.option_image_id=img.id
@@ -246,6 +247,7 @@ exports.getQuestionsByModel = async ({ modelSlug }) => {
                                         ),'[]'::JSONB
                                     )
                                 )
+                                ORDER BY qo.price_deduction ASC, qo.text desc
                             )
                             FROM sell_question_options qo
                             LEFT JOIN images img ON qo.option_image_id=img.id
