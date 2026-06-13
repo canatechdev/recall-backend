@@ -80,6 +80,7 @@ exports.updateAddress = async (req, res) => {
 };
 
 exports.getAddresses = async (req, res) => {
+    // console.log(req.user)
     const data = await userService.getAddresses(req.user);
     res.status(200).json(data);
 };

@@ -194,10 +194,11 @@ exports.updateAddress = async ({ id, user_id, name, phone, line1, line2, city, s
     return result.rows[0];
 };
 
-exports.getAddresses = async ({ user_id }) => {
+exports.getAddresses = async ({ userId }) => {
+    // console.log(user_id)
     const result = await pool.query(
         `SELECT * FROM addresses WHERE user_id=$1`,
-        [user_id]
+        [userId]
     );
     return result.rows;
 };
