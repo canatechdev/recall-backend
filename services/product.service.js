@@ -505,6 +505,7 @@ exports.getModelsByBrandSeries = async ({ brandSlug, seriesSlug }) => {
             JOIN model_images mi ON m.id=mi.model_id
             JOIN images i ON mi.image_id=i.id           
             ${whereClause}
+            ORDER BY m.id
         `, values);
 
     return result.rows;

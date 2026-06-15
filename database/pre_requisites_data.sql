@@ -29,10 +29,14 @@ BEGIN;
 		(4,'order_status','cancelled'),
 
 		-- SELL-LISTING STATUS pending assigned rejected transferred
-		(1,'listing_status','pending'),
-		(2,'listing_status','assigned'),
-		(3,'listing_status','rejected'),
-		(4,'listing_status','transferred'),
+		-- (1,'listing_status','pending'),
+		-- (2,'listing_status','out_for_delivery'),
+		-- (3,'listing_status','inspection_started'),
+		-- (4,'listing_status','inspection_complete'),
+		-- (4,'listing_status','assigned'),
+		-- (4,'listing_status','renegotiating'),
+		-- (4,'listing_status','completed'),
+		-- (4,'listing_status','cancelled'),
 
 		-- PICKUP STATUS
 		(1,'pickup_status','scheduled'),
@@ -51,16 +55,18 @@ BEGIN;
 		(2,'invite_status','accepted'),
 		(3,'invite_status','expired');
 
+	-- SELL-LISTING STATUS pending assigned rejected transferred
 	-- Additional merchant lifecycle statuses (id auto-assigned per master_name)
 	INSERT INTO enum_master(master_name, option_name)
 	VALUES
+		('listing_status','pending'),
 		('listing_status','assigned'),
 		('listing_status','out_for_delivery'),
 		('listing_status','inspection_started'),
 		('listing_status','inspection_complete'),
 		('listing_status','renegotiating'),
 		('listing_status','completed'),
-		('listing_status','cancelled'),
+		('listing_status','cancelled');
 		('inspection_status','started'),
 		('inspection_status','completed'),
 		('inspection_status','cancelled'),
