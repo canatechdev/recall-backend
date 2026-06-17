@@ -24,7 +24,9 @@ const allowedOrigins = [
   "http://recello.thecanatech.com",
   "https://recello.thecanatech.com",
   "http://dev.recello.in",
-  "https://dev.recello.in"
+  "https://dev.recello.in",
+  "http://recello.in",
+  "https://recello.in"
 ]
 
 app.use(cors({
