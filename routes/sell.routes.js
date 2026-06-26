@@ -57,6 +57,8 @@ router.put('/listings/:id/cancel', sellController.cancelListing);
 // Sell Listings (Leads)
 router.post('/pickup', authMiddleware, reqBody, sellController.schedulePickup);
 
+// GET ORDERS
+router.get('/orders', authMiddleware, sellController.getOrders);
 
 // Merchants
 router.get('/merchants', sellController.getMerchants);

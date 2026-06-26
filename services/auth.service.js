@@ -3,6 +3,8 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { sendEmail } = require("../providers/email.provider");
 const { v7: uuid7 } = require('uuid');
+const axios = require("axios");
+
 // const { password } = require("pg/lib/defaults");
 
 
@@ -21,6 +23,33 @@ const signRefreshToken = (userId) =>
         process.env.JWT_REFRESH_SECRET,
         { expiresIn: `${process.env.REFRESH_EXPIRES_DAYS}d` },
     );
+
+const buildAuthResponse = async (user) => {
+    const roles = user.roles || [];
+    const res_user = {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        roles,
+        avatar_url: user.avatar_url || null,
+    };
+    const accessToken = signAccessToken({ userId: user.id, email: user.email, roles });
+    const refreshToken = signRefreshToken(user.id);
+
+    await pool.query(
+        `
+      INSERT INTO refresh_tokens (user_id, token, expires_at)
+      VALUES ($1, $2, NOW() + INTERVAL '${process.env.REFRESH_EXPIRES_DAYS} days')
+      `,
+        [user.id, refreshToken],
+    );
+
+    return {
+        accessToken,
+        refreshToken,
+        res_user,
+    };
+};
 
 const getUserAuthContextById = async (userId) => {
     const userResult = await pool.query(
@@ -42,17 +71,38 @@ const getUserAuthContextById = async (userId) => {
     return userResult.rows[0];
 }
 
+const getUserAuthContextByPhone = async (phone) => {
+    const userResult = await pool.query(
+        `SELECT u.id,
+                up.first_name name,
+                up.avatar_url,
+                u.email,
+                array_remove(array_agg(DISTINCT r.name ORDER BY r.name), NULL) AS roles,
+                u.status
+           FROM users u
+           JOIN user_profile up ON u.id=up.user_id
+      LEFT JOIN user_roles ur ON u.id=ur.user_id
+      LEFT JOIN roles r ON ur.role_id=r.id
+          WHERE u.phone = $1
+          GROUP BY u.id, up.first_name, up.avatar_url, u.email, u.status`,
+        [phone],
+    );
+    if (userResult.rowCount === 0) throw { status: 401, message: 'Invalid session' };
+    return userResult.rows[0];
+}
+
 
 // VERIFY OTP
 exports.verifyOTP = async (data) => {
-    // console.log(data, "VERIFY OTP SERVICE")
+    console.log(data, "VERIFY OTP SERVICE")
+    // alert(JSON.stringify(data))
     const { id, otp, name } = data;
     if (!id || !otp) {
         throw { status: 400, message: "ID and OTP required" };
     }
 
     const otpResult = await pool.query(
-        `UPDATE auth_otp SET attempts=attempts+1 WHERE id = $1 RETURNING email, otp_hash, attempts-1 attempts, created_at`,
+        `UPDATE auth_otp SET attempts=attempts+1 WHERE id = $1 RETURNING phone, otp_hash, attempts-1 attempts, created_at`,
         [id]
     );
 
@@ -62,7 +112,7 @@ exports.verifyOTP = async (data) => {
 
 
     const otpRecord = otpResult.rows[0];
-    const decision = await pool.query(`SELECT id FROM users WHERE email=$1`, [otpRecord.email]);
+    const decision = await pool.query(`SELECT id FROM users WHERE phone=$1`, [otpRecord.phone]);
     if (!name && decision.rowCount === 0) {
         throw { status: 400, message: "Name is required for new registration" };
     }
@@ -82,46 +132,48 @@ exports.verifyOTP = async (data) => {
     }
     // Verify OTP
     // const isMatch = await bcrypt.compare(otp, otpRecord.otp_hash);
-    
+
     const isMatch = otp === otpRecord.otp_hash;
     if (!isMatch) {
         throw { status: 401, message: "Invalid OTP" };
     }
 
-    // return { message: "OTP verified" };
+    await pool.query(`DELETE FROM auth_otp WHERE phone = $1`, [otpRecord.phone]);
+
     if (decision.rowCount > 0) {
-        return await this.loginUser({ email: otpRecord.email, password: process.env.SYSTEM_PASSWORD || "resello@123" });
+        const user = await getUserAuthContextByPhone(otpRecord.phone);
+        if (user.status !== 1) throw { status: 403, message: "User inactive" };
+        return await buildAuthResponse(user);
     }
 
-    await pool.query(`DELETE FROM auth_otp WHERE email = $1`, [otpRecord.email]);
-    return await this.registerUser({ email: otpRecord.email, first_name: first_name, last_name: "", password: process.env.SYSTEM_PASSWORD || "resello@123" });
+    return await this.registerUser({ phone: otpRecord.phone, first_name: first_name, last_name: "", password: process.env.SYSTEM_PASSWORD || "resello@123" });
 }
 // RESEND OTP
 exports.resendOTP = async (data) => {
-    const { id, email } = data;
+    const { id, phone } = data;
 
-    if (!email || !id) {
-        throw { status: 400, message: "Email and ID required" };
+    if (!phone || !id) {
+        throw { status: 400, message: "Phone and ID required" };
     }
-    const existing = await pool.query("UPDATE auth_otp SET attempts = attempts + 1 WHERE email=$1 AND id=$2 AND created_at BETWEEN NOW() - INTERVAL '5 minutes' AND NOW() RETURNING otp_hash, attempts", [email, id]);
+    const existing = await pool.query("UPDATE auth_otp SET attempts = attempts + 1 WHERE phone=$1 AND id=$2 AND created_at BETWEEN NOW() - INTERVAL '5 minutes' AND NOW() RETURNING otp_hash, attempts", [phone, id]);
     if (existing.rowCount === 0) {
-        return await this.requestOTP({ email });
+        return await this.requestOTP({ phone });
     }
     if (existing.rows[0].attempts > 2) {
         throw { status: 429, message: "Please Request new OTP" }
     }
-    await this.sendEmailOTP({ otp: existing.rows[0].otp_hash, email: email });
+    await this.sendSMS({ otp: existing.rows[0].otp_hash, phone: phone });
 
     return { message: "OTP Re-sent", id };
 }
 // REQUEST OTP
 exports.requestOTP = async (data) => {
-    const email = data.email.toLowerCase();
+    const phone = data.phone.trim();
 
-    if (!email) {
-        throw { status: 400, message: "Email is required" };
+    if (!phone) {
+        throw { status: 400, message: "Phone number is required" };
     }
-    const existing = await pool.query(`SELECT id, otp_hash, created_at FROM auth_otp WHERE email=$1 AND created_at BETWEEN NOW()- INTERVAL '10 min' AND NOW() ORDER BY created_at DESC`, [email]);
+    const existing = await pool.query(`SELECT id, otp_hash, created_at FROM auth_otp WHERE phone=$1 AND created_at BETWEEN NOW()- INTERVAL '10 min' AND NOW() ORDER BY created_at DESC`, [phone]);
 
     if (existing.rowCount > 2) {
         const time = Date.now() - new Date(existing.rows[0].created_at).getTime();
@@ -139,48 +191,74 @@ exports.requestOTP = async (data) => {
         otp = Math.floor(100000 + Math.random() * 900000).toString();
         // const otp_hash = await bcrypt.hash(otp, SALT_ROUNDS);
         id = uuid7();
-        await pool.query("INSERT INTO auth_otp (id, email, otp_hash) VALUES ($1, $2, $3)", [id, email, otp]);
+        await pool.query("INSERT INTO auth_otp (id, phone, otp_hash) VALUES ($1, $2, $3)", [id, phone, otp]);
     }
     if (!otp) throw { status: 500, message: "Error generating OTP" };
 
     // console.log(process.env.BREVO_EMAIL, "EMAIL??")
     // console.log(process.env.BREVO_SMTP_KEY, "key??")
-    await this.sendEmailOTP({ otp: otp, email: email });
+    await this.sendSMS({ otp: otp, phone: phone });
     return { message: "OTP sent", id }; // Remove otp in production
 };
-exports.sendEmailOTP = async (data) => {
-    const { otp, email } = data
-    await sendEmail(
-        email,
-        "OTP from Resello",
-        `Your OTP is ${otp}. It expires in 10 minutes.`,
-        `
-  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
-    <h2 style="color: #333;">Verification Code</h2>
-    <p>Use the following One-Time Password (OTP) to verify your account. It expires in <b>10 minutes</b>.</p>
-    <h1 style="text-align: center; letter-spacing: 4px; color: #1a73e8;">${otp}</h1>
-    <p>If you did not request this, please ignore this email.</p>
-    <hr>
-    <p style="font-size: 12px; color: #888;">© 2026 Recello. All rights reserved.</p>
-  </div>
-  `
+exports.sendSMS = async (data) => {
+    const { otp, phone } = data
+    const response = await axios.post(
+        "https://api.dovesoft.io/api/json/sendsms/",
+        {
+            "listsms": [
+                {
+                    "sms": `Your Recello login OTP is ${otp}. Do not share this OTP with anyone. Valid for 5 minutes. - RECELLO SOLUTIONS Sell Smart. Reuse Better.`,
+                    "mobiles": "+91"+phone,
+                    "senderid": process.env.DOVE_SENDER_ID,
+                    "entityid": process.env.DOVE_ENTITY_ID,
+                    "tempid": process.env.DOVE_TEMPLATE_ID
+                }
+            ]
+        },
+        {
+            headers: {
+                "Content-Type": "application/json",
+                key: process.env.DOVE_API_KEY
+            }
+        }
     );
+
+    return { otp, response: response.data };
 }
+// exports.sendEmailOTP = async (data) => {
+//     const { otp, email } = data
+//     await sendEmail(
+//         email,
+//         "OTP from Resello",
+//         `Your OTP is ${otp}. It expires in 10 minutes.`,
+//         `
+//   <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+//     <h2 style="color: #333;">Verification Code</h2>
+//     <p>Use the following One-Time Password (OTP) to verify your account. It expires in <b>10 minutes</b>.</p>
+//     <h1 style="text-align: center; letter-spacing: 4px; color: #1a73e8;">${otp}</h1>
+//     <p>If you did not request this, please ignore this email.</p>
+//     <hr>
+//     <p style="font-size: 12px; color: #888;">© 2026 Recello. All rights reserved.</p>
+//   </div>
+//   `
+//     );
+// }
 // REGISTRATION
 exports.registerUser = async (data) => {
     const client = await pool.connect();
-    const { email, first_name, last_name, password } = data;
+    const { phone, first_name, last_name, password } = data;
+    let committed = false;
     // return 'sartak';
-    if (!email || !first_name) {
-        throw { status: 400, message: "Email and Name are required" };
+    if (!phone || !first_name) {
+        throw { status: 400, message: "Phone number and Name are required" };
     }
 
     try {
         await client.query("BEGIN");
 
         const existing = await client.query(
-            `SELECT id FROM users WHERE email = $1`,
-            [email]
+            `SELECT id FROM users WHERE phone = $1`,
+            [phone]
         );
 
         if (existing.rowCount > 0) {
@@ -193,10 +271,10 @@ exports.registerUser = async (data) => {
         // Insert user
         const userResult = await client.query(
             `
-        INSERT INTO users (email,password)
+        INSERT INTO users (phone,password)
         VALUES ($1,$2)
-        RETURNING id, email
-      `, [email, hashedPassword]);
+        RETURNING id, phone
+      `, [phone, hashedPassword]);
 
         const userId = userResult.rows[0].id;
         // throw Error('ERROR SARTHAK'+userId)
@@ -224,10 +302,12 @@ exports.registerUser = async (data) => {
         // });
 
         await client.query("COMMIT");
+        committed = true;
 
-        return await this.loginUser({ email: email, password: password })
+        const user = await getUserAuthContextById(userId);
+        return await buildAuthResponse(user);
     } catch (err) {
-        await client.query("ROLLBACK");
+        if (!committed) await client.query("ROLLBACK");
         console.error(err);
         throw { status: err.status, message: err.message || "Registration failed" };
     } finally {
@@ -277,23 +357,7 @@ exports.loginUser = async (data) => {
             throw { status: 401, message: "Invalid credentials" };
         }
 
-        const res_user = { id: user.id, email: user.email, name: user.name, roles: user.roles, avatar_url: user.avatar_url || null };
-        const accessToken = signAccessToken({ userId: user.id, email: user.email, roles: user.roles });
-        const refreshToken = signRefreshToken(user.id);
-
-        await pool.query(
-            `
-      INSERT INTO refresh_tokens (user_id, token, expires_at)
-      VALUES ($1, $2, NOW() + INTERVAL '${process.env.REFRESH_EXPIRES_DAYS} days')
-      `,
-            [user.id, refreshToken],
-        );
-
-        return {
-            accessToken,
-            refreshToken,
-            res_user
-        }
+        return await buildAuthResponse(user);
     } catch (err) {
         console.error(err);
         throw { status: err.status, message: err.message || "Login failed" };
@@ -322,7 +386,7 @@ exports.getMe = async (userPayload) => {
 
 exports.refreshToken = async (cookies) => {
     console.log("REFRESH TOKEN RESULT")
-    // console.log(req.cookies)
+    console.log(cookies)
     const { refreshToken } = cookies;
 
     if (!refreshToken) {
@@ -365,9 +429,12 @@ exports.logoutUser = async (cookies) => {
 };
 
 exports.initiateAuth = async (data) => {
-    const { email } = data;
-    const existing = await pool.query(`SELECT 1 ans from users WHERE email=$1`, [email]);
-
+    const { phone } = data;
+    if(phone.trim().length !== 10){
+        throw { status: 400, message: "Enter valid phone number" };
+    }
+    const existing = await pool.query(`SELECT 1 as ans from users WHERE phone=$1`, [phone]);
+    
     return {
         isNewUser: existing.rowCount === 0
     }

@@ -921,6 +921,7 @@ exports.getListings = async ({ status }) => {
                sl.created_at, sl.updated_at,
                em.option_name status_label,
                u.email user_email,
+               u.phone user_phone,
                up.first_name, up.last_name,
                c.name category, b.name brand, m.name model,
                smc.name config_name,
@@ -1274,6 +1275,29 @@ exports.schedulePickup = async ({ user_id, listing_id, address_id, pickup_date, 
     RETURNING *`, [listing_id, address_id, pickup_date, pickup_slot_start, pickup_slot_end, notes])
     return result.rows || [];
 };
+
+// GET ORDERS
+exports.getOrders = async (user) => {
+    // user.userId=7;
+    console.log(user,'devadiya')
+    if (!user?.userId) return [];
+    const result = await pool.query(`
+    SELECT 
+    CONCAT('#KSM-000', sl.id) AS order_id,
+    b.name brand,
+    m.name model,
+    sl.base_price,
+    sl.expected_price,
+    em.option_name status,
+    sl.created_at,
+    sl.updated_at
+    FROM sell_listings sl
+    JOIN brands b ON sl.brand_id=b.id
+    JOIN models m ON sl.model_id=m.id
+    JOIN enum_master em ON sl.status=em.id AND em.master_name='listing_status' 
+    WHERE sl.user_id=$1 ORDER BY sl.created_at DESC`, [user.userId]);
+    return result.rows || [];
+}
 
 // ── Get Merchants ────────────────────────────────────────────
 

@@ -213,6 +213,12 @@ exports.schedulePickup = async (req, res) => {
     res.status(200).json(result);
 }
 
+// GET ORDERS
+exports.getOrders = async (req, res) => {
+    const data = await sellService.getOrders(req.user);
+    res.status(200).json(data);
+};
+
 // ── Merchants ─────────────────────────────────────────────
 exports.getMerchants = async (req, res) => {
     const data = await sellService.getMerchants();

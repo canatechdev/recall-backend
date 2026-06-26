@@ -111,6 +111,7 @@ app.use('/api/system', require('./routes/system.routes'));
 app.use('/api/sell', require('./routes/sell.routes'));
 app.use('/api/banners', require('./routes/banner.routes'));
 app.use('/api/faqs', require('./routes/faq.routes'));
+app.use('/api/contact_us', require('./routes/contact.routes'));
 
 // MERCHANT ROUTES
 app.use('/api/merchant', require('./routes/merchant.routes'));
